@@ -420,14 +420,6 @@ class ParcellationLevel(object):
             ids_to_remove.extend(list(child.get("id")))
 
         r.children = []  # truncate hierarchy
-        # # Also truncate structures
-        # i = 0
-        # while i < len(structures):
-        #     if structures[i]["id"] in ids_to_remove:
-        #         structures.pop(i)
-        #     else:
-        #         i += 1
-
         highest_graph_order = numpy.max([struc["graph_order"] for struc in structures])
         struc_root = [x for x in structures if x["acronym"] == config["root_region"]]
         assert len(struc_root) == 1, "Root region {0} not found in structures file".format(config["root_region"])
@@ -447,7 +439,7 @@ class ParcellationLevel(object):
                     target_ids.extend(_r.get("id"))
 
             module_mask = numpy.in1d(annotations.raw.flat, target_ids).reshape(annotations.raw.shape)
-            ### Build mask, consider one or both hemispheres and discard non flat voxels
+            # Build mask, consider one or both hemispheres and discard non flat voxels
             if config["hemisphere"] == "right":                         
                 module_mask[:,:,:int(module_mask.shape[2]/2)] = False
             elif config["hemisphere"] == "left":
@@ -456,7 +448,7 @@ class ParcellationLevel(object):
             anat_fm = voxcell.VoxelData.load_nrrd(config["anatomical_flatmap"])
             mask_fm = anat_fm.raw[:,:,:,0] == -1
             module_mask[mask_fm == True] = False
-            ###
+            
             annotations.raw[module_mask] = module_id
             r.children.append(voxcell.Hierarchy({
                 "name": module_name,

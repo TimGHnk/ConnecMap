@@ -3,7 +3,7 @@ To generate some plots.
 """
 
 
-import json, numpy, voxcell, os
+import numpy, os
 from networkx.drawing.nx_pydot import graphviz_layout
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -27,7 +27,7 @@ def grow_tree(graph, root, df, stat):
             graph = grow_tree(graph, root.children[i], df, stat=stat)
     return graph
             
-def viz_tree(root, df, stat, color='viridis', node_size=30, width=1):
+def viz_tree(root, df, stat, save, color='viridis', node_size=30, width=1):
     G = nx.Graph()
     G = grow_tree(G, root, df, stat=stat)
     pos = graphviz_layout(G, prog="dot")
@@ -38,6 +38,8 @@ def viz_tree(root, df, stat, color='viridis', node_size=30, width=1):
     cbar._A = []
     plt.colorbar(cbar, orientation='horizontal', pad=0.05)
     plt.title(f'Tree plot with {stat}')
+    if save:
+        plt.savefig(root+f"/tree_plot_{stat}.png")
     plt.show()
 
 def final_analyses(root, analysis, save=True):
@@ -51,10 +53,26 @@ def final_analyses(root, analysis, save=True):
         dfs.append(df)
     results = pd.concat(dfs)
     results = results.drop_duplicates(subset='region', keep='first', inplace=False)
-    results.to_csv(initial_root+f'/{analysis}.csv', sep = ";", index=False)
+    if save:
+        results.to_csv(initial_root+f'/{analysis}.csv', sep = ";", index=False)
     return results
 
 
+def build_tree_from_parcellation(project, statistic, save, color="viridis", node_size=30, width=1):
+    """Build a hierarchical tree plot from the current parcellation.
+    The color node corresponds to a given statistics
+    Arguments:
+    project (class): parcellation project object
+    root (str): root directory of the parcellation to plot.
+    statistic (str): statistic to plot, either "gradient_deviation" or "reversal_index".
+    save (bool): if true, save the results in the root directory.
+    color (str): color of the node. Default to "viridis".
+    node_size (int): size of the node. Default to 30
+    width (int): width of the branches. Default to 1.
+    """
+    results = final_analyses(project._root, statistic, save)
+    hier_root = project.current_level.hierarchy_root.find("acronym", 'Module1')[0]
+    viz_tree(hier_root, results, stat=statistic, save=save, color=color, node_size=node_size, width=width)
 
 def connectivity_structure(region, fm0, fm1, annotations, hierarchy_root, show=False):
     '''Return a 2D image of the connectivity structure of a given region
@@ -137,86 +155,3 @@ def stability_measure(fm0, fm1, annotations, hierarchy_reg, SVM=True, c=0.1, gam
         plt.tight_layout()
         plt.show()
     return avg_stability, error, real_solution, noisy_solutions
-
-
-
-def quadri_stability_from_parcellation(parc_level, noise_amplitude, N, plot=True, save=True, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
-    annotations = parc_level.region_volume
-    results = pd.DataFrame(columns=['region', 'mean_stability', 'std_stability'])
-    for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
-        coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
-        gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
-        reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
-        if (reversal_idx > kwargs["thres_reversal_index"]) | (gradient_dev > kwargs["thres_gradient_deviation"]):
-            split_is_required = True
-        else: split_is_required = False
-        if split_is_required:
-            val, error = quadri_stability(parc_level, region_name, noise_amplitude, N, plot=plot, **kwargs)
-            results = results.append({"region": region_name,
-                                      "mean_stability": val,
-                                      "std_stability": error}, ignore_index=True)
-    if save is True:
-        results.to_csv(parc_level.analysis_root+'/quadri_stability.csv', sep = ";", index=False)
-
-    return results
-
-# TODO: finish code
-def quadri_stability(parc_level, region_name, noise_amplitude, N, plot=True, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)
-    annotations = parc_level.region_volume
-    fm1 = parc_level.flatmap
-    hierarchy_reg = parc_level.hierarchy_root.find("acronym", region_name)[0]
-    x1,y1,x2,y2 = fm_analyses.gradient_map(fm0, fm1, annotations, hierarchy_reg)  
-    three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
-    solution0 = splt.quadri_classification(x1, y1, x2, y2, two_d_coords)
-    out_C1 = splt.split_with_SVM(solution0[0], kwargs['C'], kwargs['gamma'], thres_accuracy=0, show=False)
-    out_C2 = splt.split_with_SVM(solution0[1], kwargs['C'], kwargs['gamma'], thres_accuracy=0, show=False)
-    solution1 = numpy.column_stack((out_C1[:,:-1], out_C1[:, -1] + 2 * out_C2[:, -1]))
-    solution2 = splt.unflattening(parc_level, region_name, solution1)
-    restults_no_noise = splt.extract_subregions(solution2, t=kwargs['t'])
-    lst_info_gain = []
-    for i in range(N):
-        da = numpy.vstack(
-            [numpy.array([[x1[two_d_coords[i,0],two_d_coords[i,1]],
-                           y1[two_d_coords[i,0],two_d_coords[i,1]]]]) for i in range(len(two_d_coords))])
-        db = numpy.vstack(
-            [numpy.array([[x2[two_d_coords[i,0],two_d_coords[i,1]],
-                           y2[two_d_coords[i,0],two_d_coords[i,1]]]]) for i in range(len(two_d_coords))])
-        X = two_d_coords[:,0]
-        Y = two_d_coords[:,1]
-        da_angle = numpy.arctan2(da[:, 0], da[:, 1])
-        db_angle = numpy.arctan2(db[:, 0], db[:, 1])
-        angle_difference = numpy.mod(db_angle - da_angle, 2*numpy.pi)
-        angle_img = angle_difference.copy()
-        noise = noise_amplitude * numpy.random.rand(len(angle_img)) - noise_amplitude / 2
-        angle_img = angle_img + noise
-        cls_sign = numpy.sign(numpy.sin(angle_img)) + 1
-        cls_inversion = numpy.sign(numpy.cos(angle_img)) + 1
-        out_C1 = splt.split_with_SVM(numpy.vstack([X, Y, cls_sign]).transpose(), kwargs['C'], kwargs['gamma'], thres_accuracy=0, show=False)
-        out_C2 = splt.split_with_SVM(numpy.vstack([X, Y, cls_inversion]).transpose(), kwargs['C'], kwargs['gamma'], thres_accuracy=0, show=False)
-        solution1 = numpy.column_stack((out_C1[:,:-1], out_C1[:, -1] + 2 * out_C2[:, -1]))
-        solution2 = splt.unflattening(parc_level, region_name, solution1)
-        noisy_results = splt.extract_subregions(solution2, t=kwargs['t'])
-        distrib0, distrib1 = mutual_information_two_parcellations(restults_no_noise, noisy_results)
-        info_gain, prior_entropy = _mi_implementation(distrib0, distrib1)
-        lst_info_gain.append(info_gain)
-    res = lst_info_gain / prior_entropy * 1 # Normalize between 0 and 1
-    val = numpy.mean(res)
-    error = numpy.std(res)
-    if plot is True:
-        x_pos = ['mean_information_gain']
-        fig, ax = plt.subplots(figsize=(5,8))
-        ax.bar(x_pos, val, yerr=error, ecolor='black', capsize=10)
-        ax.set_ylabel('information gain in bits (normalized between [0:1])')
-        ax.set_xticks(x_pos)
-        ax.set_title(f"Stability to noise of {region_name}: mean = {val}, std = {error}")
-        ax.yaxis.grid(True)
-        plt.tight_layout()
-        plt.show()
-    return val, error

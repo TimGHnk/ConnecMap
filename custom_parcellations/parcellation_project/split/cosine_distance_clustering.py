@@ -52,30 +52,31 @@ def cosine_distance_clustering(gXs, gYs, two_d_coords, lambdas, **kwargs):
     ''' Uses HDBSCAN clustering for gradients classification.
     '''
     if numpy.count_nonzero(gXs[0][~numpy.isnan(gXs[0])]) < 2:
+        print("N gradients < 2, not enough !")
         return numpy.column_stack((two_d_coords, numpy.zeros(len(two_d_coords)))) # not enough gradients to work with.
+    
+    if "N" in kwargs:
+        N = kwargs["N"]
     else:
-        if "N" in kwargs:
-            N = kwargs["N"]
-        else:
-            N = len(gXs)
-        distanceMatrix = sum_of_cos_distances(two_d_coords, gXs, gYs, lambdas, N=N)
-        clusterer = hdbscan.HDBSCAN(algorithm='best',
-                                    alpha=kwargs["alpha"],
-                                    metric='precomputed',
-                                    cluster_selection_epsilon=kwargs["eps"],
-                                    min_cluster_size=kwargs["min_cluster_size"],
-                                    min_samples=kwargs["min_samples"],
-                                    cluster_selection_method = "eom")   
-        
-        clusterer.fit(distanceMatrix)
-        clf = clusterer.labels_
-        vec = gXs[0][two_d_coords[:,0], two_d_coords[:,1]] # to extract Nan
-        X = numpy.delete(two_d_coords, numpy.where(numpy.isnan(vec))[0], 0)
-        X_clf = numpy.column_stack((X, clf)).astype("float64")
-        X_clf[:,-1][X_clf[:,-1] == -1] = numpy.NaN
-        X_nan = two_d_coords[numpy.unique(numpy.where(numpy.isnan(vec))[0])]
-        labels = numpy.empty((len(X_nan),1))
-        labels[:] = numpy.NaN
-        X_nan = numpy.column_stack((X_nan, labels))
-        grad_clf = numpy.row_stack((X_clf, X_nan))
-        return grad_clf
+        N = len(gXs)
+    distanceMatrix = sum_of_cos_distances(two_d_coords, gXs, gYs, lambdas, N=N)
+    clusterer = hdbscan.HDBSCAN(algorithm='best',
+                                alpha=kwargs["alpha"],
+                                metric='precomputed',
+                                cluster_selection_epsilon=kwargs["eps"],
+                                min_cluster_size=kwargs["min_cluster_size"],
+                                min_samples=kwargs["min_samples"],
+                                cluster_selection_method = "eom")   
+    
+    clusterer.fit(distanceMatrix)
+    clf = clusterer.labels_
+    vec = gXs[0][two_d_coords[:,0], two_d_coords[:,1]] # to extract Nan
+    X = numpy.delete(two_d_coords, numpy.where(numpy.isnan(vec))[0], 0)
+    X_clf = numpy.column_stack((X, clf)).astype("float64")
+    X_clf[:,-1][X_clf[:,-1] == -1] = numpy.NaN
+    X_nan = two_d_coords[numpy.unique(numpy.where(numpy.isnan(vec))[0])]
+    labels = numpy.empty((len(X_nan),1))
+    labels[:] = numpy.NaN
+    X_nan = numpy.column_stack((X_nan, labels))
+    grad_clf = numpy.row_stack((X_clf, X_nan))
+    return grad_clf

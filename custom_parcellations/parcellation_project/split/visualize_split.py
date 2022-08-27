@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from parcellation_project.split import decide_split as splt
 from parcellation_project.split.reversal_detector import reversal_detector
+from parcellation_project.split.cosine_distance_clustering import extract_gradients, cosine_distance_clustering
 
 
 
@@ -15,17 +16,6 @@ def binary_classification_for_visualization(parc_level, r, **kwargs):
     coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
     deg_arr = fm_analyses.degree_matrix_from_parcellation(parc_level, r, normalize=True)
     results = splt.binary_classification(deg_arr, coords2d)
-    return results
-
-
-def KMeans_classification_for_visualization(parc_level, r, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
-    fm1 = parc_level.flatmap
-    annotations = parc_level.region_volume
-    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
-    x1, y1, x2, y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False)
-    results = splt.KMeans_classification(x1, y1, x2, y2, coords2d, kwargs["k"])
     return results
 
 
@@ -51,16 +41,7 @@ def quadri_classification_for_visualization(parc_level, r, **kwargs):
     x1, y1, x2, y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False)
     results = splt.quadri_classification(x1, y1, x2, y2, coords2d)
     return results
-    
 
-def viz_with_SVM(coords_clf, **kwargs):
-    if isinstance(coords_clf, list):
-        out_C1 = splt.split_with_SVM(coords_clf[0], kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
-        out_C2 = splt.split_with_SVM(coords_clf[1], kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
-        solution = numpy.column_stack((out_C1[:,:-1], out_C1[:, -1] + 2 * out_C2[:, -1]))
-    else:
-        solution = splt.split_with_SVM(coords_clf, kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
-    return solution
 
 def reversal_detection_for_visualization(parc_level, r, pre_filter_sz=5, post_filter_sz=1,
                                          min_seed_cluster_sz=4, border_thresh=0.05, **kwargs):
@@ -77,13 +58,38 @@ def reversal_detection_for_visualization(parc_level, r, pre_filter_sz=5, post_fi
                                 border_thresh=border_thresh)
     
     return solution
+    
+
+def cosine_distance_clustering_for_visualization(parc_level, r, alpha, eps, min_cluster_size, min_samples, N):
+    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
+    fm1 = parc_level.flatmap
+    annotations = parc_level.region_volume
+    char = parc_level.characterization
+    gXs, gYs = extract_gradients(fm0, fm1, annotations, r)
+    lambdas = [i for i in char if i["region"] == r.data["acronym"]][0]["lambdas"]
+    _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+    coords2d = numpy.unique(coords2d, axis=0)
+    solution = cosine_distance_clustering(gXs, gYs, coords2d, lambdas, alpha, eps, min_cluster_size, min_samples, N)
+    return solution
+
+
+
+def viz_with_SVM(coords_clf, **kwargs):
+    if isinstance(coords_clf, list):
+        out_C1 = splt.split_with_SVM(coords_clf[0], kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
+        out_C2 = splt.split_with_SVM(coords_clf[1], kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
+        solution = numpy.column_stack((out_C1[:,:-1], out_C1[:, -1] + 2 * out_C2[:, -1]))
+    else:
+        solution = splt.split_with_SVM(coords_clf, kwargs["C"], kwargs["gamma"], thres_accuracy=0, show=kwargs["show"])
+    return solution
+
 
 def viz_split_region(parc_level, r, func1, func2, extend=False, **kwargs):
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
-    _, coords_2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
     coords_2d_clf = func1(parc_level, r, **kwargs)
     solution0 = func2(coords_2d_clf, show=True, **kwargs)
     new_subregions = splt.extract_subregions(solution0, kwargs['t'])

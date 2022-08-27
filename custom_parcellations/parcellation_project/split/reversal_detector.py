@@ -222,7 +222,7 @@ def reversal_detector(region, fm0, fm1, annotations, hierarchy_root, component="
                        pre_filter_sz=5, post_filter_sz=1, min_seed_cluster_sz=4, border_thresh=0.05):
     
     hierarchy_reg = hierarchy_root.find("acronym", region)[0]
-    three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
+    _, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
     two_d_coords = numpy.unique(two_d_coords, axis=0)
     
     img = connectivity_structure(region, fm0, fm1, annotations, hierarchy_root)

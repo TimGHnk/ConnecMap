@@ -1,20 +1,14 @@
-import numpy, voxcell
+import numpy
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from parcellation_project.split import decide_split as splt
 import hdbscan
 from scipy.spatial.distance import pdist,squareform
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-from sklearn.metrics import calinski_harabasz_score
-from sklearn.metrics import davies_bouldin_score
-from sklearn.mixture import GaussianMixture
 from parcellation_project.analyses.flatmaps import flatmap_to_coordinates, gradient_map, vector_matrix
 from scipy.spatial.distance import cdist
 from parcellation_project.analyses.parcellation import _mi_implementation
 from parcellation_project.analyses.parcellation import mutual_information_two_parcellations
-from voxel_maps import coordinates_to_image
 import seaborn as sns
 from parcellation_project.analyses import flatmaps as fm_analyses
 
@@ -119,112 +113,6 @@ def noisy_quadri_classification(x1, y1, x2, y2, two_d_coords, noise_amplitude=0.
     return [out_ssin, out_scos]
 
 
-# TODO: finish implementation of KMeans tuner
-def KMeans_tuner(parc_level, k_grid, region_name, method, show=False):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
-    fm1 = parc_level.flatmap  # Diffusion fm
-    annotations = parc_level.region_volume
-    r = parc_level.hierarchy_root.find("acronym", region_name)[0]  
-    three_d_coords, two_d_coords = flatmap_to_coordinates(annotations, fm0, r)
-    x1,y1,x2,y2 = gradient_map(fm0, fm1, annotations, r, show=False) 
-    vectors = numpy.vstack(
-        [numpy.array([[x1[two_d_coords[i,0],two_d_coords[i,1]],
-                        y1[two_d_coords[i,0],two_d_coords[i,1]],
-                        x2[two_d_coords[i,0],two_d_coords[i,1]],
-                        y2[two_d_coords[i,0],two_d_coords[i,1]]]]) for i in range(len(two_d_coords))])
-    features = vectors[numpy.unique(numpy.where(numpy.invert(numpy.isnan(vectors)))[0])]
-    if method == "inertia":
-        score = tune_KMeans_inertia(features, k_grid, show=show)
-    if method == "silhouette":
-        score = tune_KMeans_silhouette(features, k_grid, show=show)
-    if method == "chs":
-        score = tune_KMeans_chs(features, k_grid, show=show)
-    if method == "dbs":
-        score = tune_KMeans_dbs(features, k_grid, show=show)
-    if method == "bic":
-        score = tune_KMeans_bic(features, k_grid, show=show)
-    return score
-
-
-def tune_KMeans_inertia(X, k_grid, show=False):
-    distorsions = []
-    for k in k_grid:
-        kmeans = KMeans(init="random", n_clusters=k, n_init=50, max_iter=500, random_state=42)
-        kmeans.fit(X)
-        distorsions.append({"K": k,
-                            "distorsion": kmeans.inertia_})
-    if show is True:
-        ks = [distorsions[i]["K"] for i in range(len(distorsions))]
-        distos = [distorsions[i]["distorsion"] for i in range(len(distorsions))]
-        plt.plot(ks, distos)
-        plt.show()
-    return distorsions
-
-def tune_KMeans_silhouette(X, k_grid, show=False):
-    silhouettes = []
-    for k in k_grid:
-        kmeans = KMeans(init="random", n_clusters=k, n_init=50, max_iter=500, random_state=42)
-        kmeans.fit(X)
-        silhouettes.append({"K": k,
-                            "silhouette_avg": silhouette_score(X, kmeans.labels_)})
-    if show is True:
-        ks = [silhouettes[i]["K"] for i in range(len(silhouettes))]
-        sil_avg = [silhouettes[i]["silhouette_avg"] for i in range(len(silhouettes))]
-        plt.plot(ks, sil_avg)
-        plt.show()
-    return silhouettes
-
-def tune_KMeans_chs(X, k_grid, show=False):
-    chs = []
-    for k in k_grid:
-        kmeans = KMeans(init="random", n_clusters=k, n_init=50, max_iter=500, random_state=42)
-        kmeans.fit(X)
-        chs.append({"K": k,
-                            "ch_score": calinski_harabasz_score(X, kmeans.labels_)})
-    if show is True:
-        ks = [chs[i]["K"] for i in range(len(chs))]
-        cal_har_score = [chs[i]["ch_score"] for i in range(len(chs))]
-        plt.plot(ks, cal_har_score)
-        plt.show()        
-    return chs
-
-def tune_KMeans_dbs(X, k_grid, show=False):
-    dbs = []
-    for k in k_grid:
-        kmeans = KMeans(init="random", n_clusters=k, n_init=50, max_iter=500, random_state=42)
-        kmeans.fit(X)
-        dbs.append({"K": k,
-                            "db_score": davies_bouldin_score(X, kmeans.labels_)})
-    if show is True:
-        ks = [dbs[i]["K"] for i in range(len(dbs))]
-        db_score = [dbs[i]["db_score"] for i in range(len(dbs))]
-        plt.plot(ks, db_score)
-        plt.show()
-    return dbs
-
-
-def tune_KMeans_bic(X, k_grid, show=False):
-    covariance_type = ['spherical', 'tied', 'diag', 'full']
-    bic = []
-    for cov in covariance_type:
-        bic_cov = []
-        for k in k_grid:
-            gmm=GaussianMixture(n_components=k,covariance_type=cov, init_params="kmeans")
-            gmm.fit(X)
-            bic_cov.append({"cov_type": cov,
-                          "K": k,
-                          "BIC_score": gmm.bic(X)})
-        if show is True:
-            ks = [bic_cov[i]["K"] for i in range(len(bic_cov))]
-            bic_score = [bic_cov[i]["BIC_score"] for i in range(len(bic_cov))]
-            plt.plot(ks, bic_score)
-            plt.title(f"{cov} coviariance")
-            plt.show()
-        bic.append(bic_cov)
-    return bic
-
-
 def tune_epsilon_HDBSCAN(fm0, fm1, annotations, hierarchy_reg):
     three_d_coords, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
     vector_x, vector_y = vector_matrix(fm0, fm1, annotations, hierarchy_reg)
@@ -310,31 +198,4 @@ def similarity_clusters(gX, gY, clf):
             df.at[a,b] = mean_dist
     return df
 
-def HDBSCAN_cut_distance(x_arr, y_arr, labels, distance=0.1):
-    new_labels = labels.copy()
-    df = similarity_clusters(x_arr, y_arr, new_labels)
-    while (df < distance).any().any():
-        indices = numpy.column_stack((df.index[numpy.where(df < distance)[0]], df.index[numpy.where(df < distance)[1]]))
-        new_labels[new_labels == indices[0,1]] = indices[0,0]
-        df = similarity_clusters(x_arr, y_arr, new_labels)
-    return new_labels
 
-def HDBSCAN_clf_outliers(x_arr, y_arr, labels, distance=0.1):
-    x_clust = numpy.column_stack((x_arr,labels))
-    y_clust = numpy.column_stack((y_arr,labels))
-    new_labels = labels.copy()
-    idx_out = numpy.where(new_labels == -1)[0]
-    list_mean_gradients = []
-    for i in numpy.unique(new_labels[new_labels > -1]):
-        list_mean_gradients.append(numpy.array((numpy.mean(x_clust[:,0][x_clust[:,-1] == i]),numpy.mean(x_clust[:,1][x_clust[:,-1] == i]), numpy.mean(y_clust[:,0][y_clust[:,-1] == i]),numpy.mean(y_clust[:,1][y_clust[:,-1] == i]))))
-    mean_grad = numpy.array(list_mean_gradients)
-    for i in idx_out:
-        outl = numpy.array([x_clust[i,0:2], y_clust[i,0:2]])
-        distance_x = cdist(mean_grad[:,0:2], numpy.array([outl[0]]), 'cosine')
-        distance_y = cdist(mean_grad[:,2:4], numpy.array([outl[1]]), 'cosine')
-        res = distance_x + distance_y
-        min_dist = numpy.amin(res)
-        if min_dist < distance:
-            new_labels[i] = numpy.where(res == min_dist)[0][0]
-        else: continue
-    return new_labels

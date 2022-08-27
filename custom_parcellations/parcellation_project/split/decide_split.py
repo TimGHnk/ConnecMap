@@ -2,25 +2,18 @@ import numpy
 from voxcell import VoxelData
 from parcellation_project.analyses import flatmaps as fm_analyses
 from parcellation_project.project import ParcellationLevel
-from sklearn.cluster import KMeans
 from sklearn import svm
 from scipy.cluster.hierarchy import linkage, fcluster
-import scipy
 from scipy.spatial.distance import pdist
 from sklearn.metrics import plot_confusion_matrix
 import matplotlib.pyplot as plt
-import itertools
-from scipy.spatial.distance import pdist, cdist, squareform
-import hdbscan
-from math import pi
-from parcellation_project.split.tuning import tune_epsilon_HDBSCAN, tune_HDBSCAN_cluster_size
-from parcellation_project.split.tuning import HDBSCAN_clf_outliers, HDBSCAN_cut_distance
+from scipy.spatial.distance import pdist, cdist
 from parcellation_project.split.reversal_detector import reversal_detector
 from parcellation_project.split.cosine_distance_clustering import extract_gradients, cosine_distance_clustering
  
 
 def binary_classification(deg_arr, two_d_coords):
-    '''Classify the gradient in two classes along the 2d coordinates
+    '''Classify pixels into two classes based on the angle between alpha and beta gradients.
     '''
     degree = []
     for i in range(len(two_d_coords)):
@@ -33,6 +26,8 @@ def binary_classification(deg_arr, two_d_coords):
 
 
 def binary_classification_from_parcellation(parc_level, **kwargs):
+    """Apply binary classification to the current parcellation.
+    """
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     annotations = parc_level.region_volume
@@ -53,111 +48,9 @@ def binary_classification_from_parcellation(parc_level, **kwargs):
             results[region_name] = binary_classification(deg_arr, coords2d)
     return results
 
-    
-
-def KMeans_classification(x1, y1, x2, y2, two_d_coords, k):
-    '''Uses K-means for gradients classification.
-    '''
-    vectors = numpy.column_stack((x1[two_d_coords[:,0], two_d_coords[:,1]],
-                             y1[two_d_coords[:,0], two_d_coords[:,1]],
-                             x2[two_d_coords[:,0], two_d_coords[:,1]],
-                             y2[two_d_coords[:,0], two_d_coords[:,1]]))
-    kmeans = KMeans(init="k-means++", n_clusters=k, n_init=50, max_iter=500, random_state=42)  
-    features = vectors[numpy.unique(numpy.where(numpy.invert(numpy.isnan(vectors)))[0])]
-    kmeans.fit(features)
-    X = two_d_coords[numpy.unique(numpy.where(numpy.invert(numpy.isnan(vectors)))[0])]
-    X_clf = numpy.column_stack((X, kmeans.labels_))
-    X_nan = two_d_coords[numpy.unique(numpy.where(numpy.isnan(vectors))[0])]
-    labels = numpy.empty((len(X_nan),1))
-    labels[:] = numpy.NaN
-    X_nan = numpy.column_stack((X_nan, labels))
-    grad_clf = numpy.row_stack((X_clf, X_nan))
-    return grad_clf
-    
-def KMeans_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
-    fm1 = parc_level.flatmap  # Diffusion fm
-    annotations = parc_level.region_volume
-    results = {}
-    for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
-        coords2d = numpy.unique(coords2d, axis=0)
-        gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
-        reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
-        if (reversal_idx > kwargs["thres_reversal_index"]) | (gradient_dev > kwargs["thres_gradient_deviation"]):
-            split_is_required = True
-        else: split_is_required = False
-        if split_is_required:    
-            x1,y1,x2,y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False) 
-            results[region_name] = KMeans_classification(x1, y1, x2, y2, coords2d, k=2)
-    return results
-
-
-def HDBSCAN_classification(x1, y1, x2, y2, two_d_coords, **kwargs):
-    ''' Uses HDBSCAN clustering for gradients classification.
-    '''
-    if numpy.count_nonzero(x1[~numpy.isnan(x1)]) < 2:
-        return numpy.column_stack((two_d_coords, numpy.zeros(len(two_d_coords)))) # not enough gradients to work.
-    else:
-        vecX = numpy.column_stack((x1[two_d_coords[:,0], two_d_coords[:,1]], y1[two_d_coords[:,0], two_d_coords[:,1]]))
-        vecY = numpy.column_stack((x2[two_d_coords[:,0], two_d_coords[:,1]], y2[two_d_coords[:,0], two_d_coords[:,1]]))
-        x_arr = numpy.delete(vecX, numpy.where(numpy.isnan(vecX))[0], 0)
-        y_arr = numpy.delete(vecY, numpy.where(numpy.isnan(vecY))[0], 0)
-        distX = squareform(pdist(x_arr, metric='cosine'))
-        distY = squareform(pdist(y_arr, metric='cosine'))
-        distanceMatrix = distX + distY
-        distanceMatrix = distanceMatrix / 2 #Normalize between 0 and 2
-        
-        clusterer = hdbscan.HDBSCAN(algorithm='best',
-                                    alpha=kwargs["alpha"],
-                                    metric='precomputed',
-                                    cluster_selection_epsilon=kwargs["eps"],
-                                    min_cluster_size=kwargs["min_cluster_size"],
-                                    min_samples=kwargs["min_samples"],
-                                    cluster_selection_method = "eom")   
-        
-        clusterer.fit(distanceMatrix)
-        clf = clusterer.labels_
-        X = numpy.delete(two_d_coords, numpy.where(numpy.isnan(vecX))[0], 0)
-        X_clf = numpy.column_stack((X, clf)).astype("float64")
-        X_clf[:,-1][X_clf[:,-1] == -1] = numpy.NaN
-        X_nan = two_d_coords[numpy.unique(numpy.where(numpy.isnan(vecX))[0])]
-        labels = numpy.empty((len(X_nan),1))
-        labels[:] = numpy.NaN
-        X_nan = numpy.column_stack((X_nan, labels))
-        grad_clf = numpy.row_stack((X_clf, X_nan))
-        return grad_clf
-    
-def HDBSCAN_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
-    fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
-    fm1 = parc_level.flatmap  # Diffusion fm
-    annotations = parc_level.region_volume
-    results = {}
-    for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
-        coords2d = numpy.unique(coords2d, axis=0)
-        gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
-        reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
-        if (reversal_idx > kwargs["thres_reversal_index"]) | (gradient_dev > kwargs["thres_gradient_deviation"]):
-            split_is_required = True
-        else: split_is_required = False
-        if split_is_required:    
-            x1,y1,x2,y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False) 
-            results[region_name] = HDBSCAN_classification(x1, y1, x2, y2, coords2d, **kwargs)
-    return results
-
-
 def quadri_classification(x1, y1, x2, y2, two_d_coords):
     ''' Classifies gradients based on the sign of sine and cosine of
-    the angle between gradients.
+    the angle between alpha and beta gradients.
     '''
     da = numpy.column_stack((x1[two_d_coords[:,0], two_d_coords[:,1]], y1[two_d_coords[:,0], two_d_coords[:,1]]))
     db = numpy.column_stack((x2[two_d_coords[:,0], two_d_coords[:,1]], y2[two_d_coords[:,0], two_d_coords[:,1]]))
@@ -172,6 +65,8 @@ def quadri_classification(x1, y1, x2, y2, two_d_coords):
     return [out_ssin, out_scos]
 
 def quadri_classification_from_parcellation(parc_level, **kwargs):
+    """"Apply quadri classification on the current parcellation.
+    """
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
@@ -194,6 +89,8 @@ def quadri_classification_from_parcellation(parc_level, **kwargs):
     return results
 
 def reversal_detector_from_parcellation(parc_level, **kwargs):
+    """Apply the reversal detector on the current parcellation.
+    """
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
@@ -222,6 +119,8 @@ def reversal_detector_from_parcellation(parc_level, **kwargs):
     
 
 def cosine_distance_clustering_from_parcellation(parc_level, **kwargs):
+    """Apply the cosine distance clustering on the current parcellation.
+    """
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
@@ -268,7 +167,6 @@ def split_with_SVM(gradient_clf, c, gamma, thres_accuracy, show=True):
                                          normalize='true')
         plt.title('Confusion matrix for our classifier')
         plt.show(matrix)
-        plt.show()
     # Predict the unknown data set
     Y_pred = clf.predict(two_d_coords)
     # Inject prediction and build new 3d coordinates array
@@ -323,11 +221,8 @@ def merge_lonely_voxels(solution, thres_size):
                 idx = numpy.where(minDist == numpy.amin(minDist))[0][0]
             else: 
                 try:
-                    neigh = numpy.where(minDist == numpy.amin(minDist))[0]
-                    if lst_subregions[i].shape[1] == 2:
-                        boundaries = numpy.array([len(frontier2d(lst_subregions[i], lst_subregions[j])[0]) for j in neigh])
-                    elif lst_subregions[i].shape[1] == 3:
-                        boundaries = numpy.array([len(frontier3d(lst_subregions[i], lst_subregions[j])[0]) for j in neigh])                
+                    neigh = numpy.where(minDist == numpy.amin(minDist))[0]                 
+                    boundaries = numpy.array([len(extract_frontier(lst_subregions[i], lst_subregions[j])) for j in neigh])               
                     idx = neigh[numpy.where(boundaries == numpy.amax(boundaries))][0]
                 except:
                     idx = numpy.where(minDist == numpy.amin(minDist))[0][0]
@@ -346,17 +241,21 @@ def merge_lonely_voxels(solution, thres_size):
 
 # Added separated SVM splitter and validation process, coded in a way to handle 
 # 2 SVMs classifications for the quadri classification
-def SVM_splitter(parc_level, initial_solution, validation_function,  **kwargs):
+def splitter(parc_level, initial_solution, validation_function,  **kwargs):
+    '''Function wrapping all the processes to split regions into subregions.
+    '''
     out_solution = {}
     for region_name, solution in initial_solution.items():
-        solution = SVM_process(parc_level, region_name, solution, validation_function, **kwargs)
+        solution = splitting_process(parc_level, region_name, solution, validation_function, **kwargs)
         if solution is not None:
             solution = unflattening(parc_level, region_name, solution, only_sort=True)
             out_solution[region_name] = solution
     return out_solution
 
         
-def SVM_process(parc_level, region_name, solution, validation_function, **kwargs):
+def splitting_process(parc_level, region_name, solution, validation_function, **kwargs):
+    '''All steps for the splitting, gradient classification, Machine learned extrapolation, and post-process.
+    '''
     split_is_validated = None
     ## If 1st classification is quadri clf, performs 2 SVMs
     if isinstance(solution, list):
@@ -412,124 +311,8 @@ def unflattening(parc_level, region, solution, only_sort=False):
             voxel_clf[i,-1] = solution[numpy.where((voxel_clf[i,:-1] == solution[:,:-1]).all(1))[0][0],-1]
     return voxel_clf
 
-
-def validate_split_lm(solution, **kwargs):
-    '''Validation of the split. Find the frontiers between the new subregions,
-    fit a linear plane on it and use MSE, MAPE and R² to evaluate how close to linearity
-    the x,y,z coordinates of the frontier are.
-    If MSE too high and R² to low, the split evaluated as too non-linear not valid.
-    Reject also if new subregions is too small
-    '''
-    lst_subregions = [solution[:,:-1][solution[:,-1] == sub] for sub in numpy.unique(solution[:,-1])]
-    is_validated = None
-    if any([len(i) < kwargs['thres_size'] for i in lst_subregions]):
-        is_validated = False
-        return is_validated
-    frontiers = find_frontier(lst_subregions)
-    for frontier in frontiers:
-        if len(frontier) < 3:
-            print("Frontier too small, can't perform linear fit validation")
-            is_validated = False
-            return is_validated
-        valid_frontier = fit_linear_plane(frontier, kwargs['thres_MSE'],kwargs['thres_MAPE'],  kwargs['thres_Rsquared'])  
-        if len(valid_frontier) == 0:
-            is_validated = False
-            return is_validated
-        else: continue
-    is_validated = True 
-    return is_validated
-
-
-
-def frontier2d(regionA, regionB):
-    frontiers = []
-    offset1 = numpy.array([[1,0]])
-    offset2 = numpy.array([[0,1]])
-    frontier = []
-    for coords in regionA:
-        if ((any((regionB[:]==(coords + offset1)).all(1)))
-            | (any((regionB[:]==(coords + offset2)).all(1)))
-            | (any((regionB[:]==(coords - offset1)).all(1)))
-            | (any((regionB[:]==(coords - offset2)).all(1)))):
-            frontier.append(coords)
-    if len(frontier) > 0:
-        frontier = numpy.vstack(frontier)
-        frontiers.append(frontier)
-    return frontiers
-
-def frontier3d(regionA, regionB):
-    frontiers = []
-    offset1 = numpy.array([[1,0,0]])
-    offset2 = numpy.array([[0,1,0]])
-    offset3 = numpy.array([[0,0,1]])
-    frontier = []
-    for coords in regionA:
-        if ((any((regionB[:]==(coords + offset1)).all(1)))
-            | (any((regionB[:]==(coords + offset2)).all(1)))
-            | (any((regionB[:]==(coords + offset3)).all(1)))
-            | (any((regionB[:]==(coords - offset1)).all(1)))
-            | (any((regionB[:]==(coords - offset2)).all(1)))
-            | (any((regionB[:]==(coords - offset3)).all(1)))):
-            frontier.append(coords)
-    if len(frontier) > 0:
-        frontier = numpy.vstack(frontier)
-        frontiers.append(frontier)
-    return frontiers
-
-def find_frontier(splitted_region):
-    frontiers = []
-    offset1 = numpy.array([[1,0,0]])
-    offset2 = numpy.array([[0,1,0]])
-    offset3 = numpy.array([[0,0,1]])
-    poss_combi = list(itertools.combinations(splitted_region, 2))
-    for combi in poss_combi:
-        region1 = combi[0]
-        region2 = combi[1]
-        frontier = []
-        for coords in region1:
-            if ((any((region2[:]==(coords + offset1)).all(1)))
-                | (any((region2[:]==(coords + offset2)).all(1)))
-                | (any((region2[:]==(coords + offset3)).all(1)))
-                | (any((region2[:]==(coords - offset1)).all(1)))
-                | (any((region2[:]==(coords - offset2)).all(1)))
-                | (any((region2[:]==(coords - offset3)).all(1)))):
-                frontier.append(coords)
-        if len(frontier) > 0:
-            frontier = numpy.vstack(frontier)
-            frontiers.append(frontier)
-    return frontiers
-
-def fit_linear_plane(frontier, thres_MSE, thres_MAPE, thres_Rsquared):
-    # Try with every axis as dependent variable
-    model1 = numpy.column_stack((frontier[:,0], frontier[:,1], frontier[:,2]))
-    model2 = numpy.column_stack((frontier[:,0], frontier[:,2], frontier[:,1]))
-    model3 = numpy.column_stack((frontier[:,2], frontier[:,1], frontier[:,0]))
-    models = [model1, model2, model3]
-    fitted_frontier = []
-    for model in models:
-        xData = model[:,0]
-        yData = model[:,1]
-        zData = model[:,2]
-        data = [xData, yData, zData]
-        initialParameters = [1.0, 1.0, 1.0]
-        def func(data, a, b, c):
-            x = data[0]
-            y = data[1]
-            return (a * x) + (b * y) + c
-        # Use non-linear least squares to fit function's parameters
-        fittedParameters, _ = scipy.optimize.curve_fit(func, [xData, yData], zData, p0 = initialParameters)
-        
-        modelPredictions = func(data, *fittedParameters) 
-        
-        absError = modelPredictions - zData
-        SE = numpy.square(absError)
-        MSE = numpy.mean(SE)
-        Rsquared = 1.0 - (numpy.var(absError) / numpy.var(zData))
-        MAPE = 100/len(modelPredictions) * sum(abs(absError/zData))
-#         if ((MSE < thres_MSE) & (Rsquared > thres_Rsquared)
-#             |(MSE < thres_MSE) & (MAPE < thres_MAPE)
-#             |(MAPE < thres_MAPE) & (Rsquared > thres_Rsquared)):
-        if (MSE < thres_MSE) & (Rsquared > thres_Rsquared) & (MAPE < thres_MAPE):
-            fitted_frontier.append(model)
-    return fitted_frontier
-        
+def extract_frontier(regionA, regionB):
+    dist = cdist(regionA, regionB)
+    min_dist = numpy.column_stack(numpy.where(dist==1)) #extract touching pixels/voxels
+    frontier = numpy.vstack((numpy.unique(regionA[min_dist[:,0]], axis=0), numpy.unique(regionB[min_dist[:,1]], axis=0)))
+    return frontier

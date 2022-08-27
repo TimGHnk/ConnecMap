@@ -1,12 +1,12 @@
 {
   "level_configuration": {
     "root_region": "Isocortex",
-    "anatomical_flatmap": "D:/Documents/Anaconda/flatmap_tools/custom_parcellation/configs_4/input/configuration/anatomical_flatmap.nrrd",
-    "anatomical_parcellation": "D:/Documents/Anaconda/flatmap_tools/custom_parcellation/configs_4/input/configuration/annotation_100.nrrd",
-    "anatomical_hierarchy": "D:/Documents/Anaconda/flatmap_tools/custom_parcellation/configs_4/input/configuration/hierarchy_bis.json",
-    "voxel_model_manifest": "D:/Documents/Anaconda/flatmap_tools/custom_parcellation/configs_4/input/configuration/voxel_model_manifest.json",
-    "voxel_model_structures": "D:/Documents/Anaconda/flatmap_tools/custom_parcellation/configs_4/input/configuration/structures.json",
-    "allen_model_path": "D:/Documents/Anaconda/connectivity",
+    "anatomical_flatmap": "~/ConnecMap/custom_parcellation/configs_0/input/configuration/anatomical_flatmap.nrrd",
+    "anatomical_parcellation": "~/ConnecMap/custom_parcellation/configs_0/input/configuration/annotation_100.nrrd",
+    "anatomical_hierarchy": "~/ConnecMap/custom_parcellation/configs_0/input/configuration/hierarchy_bis.json",
+    "voxel_model_manifest": "~/ConnecMaps/custom_parcellation/configs_0/input/configuration/voxel_model_manifest.json",
+    "voxel_model_structures": "~/ConnecMap/custom_parcellation/configs_0/input/configuration/structures.json",
+    "allen_model_path": "~/connectivity",
     "paths": {
       "region_volume": "run/custom_annotations.nrrd",
       "hierarchy": "run/custom_hierarchy.json",
@@ -23,14 +23,9 @@
       "parcellation": ["mutual_information_from_parcellation_regions",
                       "mutual_information_from_parcellation_layers",
                       "overlap_with_parcellation"],
-      "flatmap": ["banana_factor_from_parcellation",
-                  "gradient_map_from_parcellation",
+      "flatmap": ["gradient_map_from_parcellation",
                   "gradient_deviation_from_parcellation",
-                  "reversal_index_from_parcellation",
-                  "sum_gradient_variance_from_parcellation",
-                  "mean_gradient_variance_from_parcellation",
-                  "sum_gradient_dispersion_from_parcellation",
-                  "mean_gradient_dispersion_from_parcellation"]
+                  "reversal_index_from_parcellation"]
     }
   },
   "parameters": {
@@ -53,12 +48,12 @@
           "border_thresh": 0.05}
       },
       "step_2": {
-        "function": "SVM_splitter",
+        "function": "splitter",
         "args": [],
         "kwargs": {"C": 0.5, "gamma":  0.05, "t":  2, "thres_accuracy": 0, "merge": 1},
         "tuning": "SVM_tuner",
         "validation": {
-            "function": 0,
+            "function": 0, // set 0 for no validation step
             "kwargs": {"thres_size": 100, "thres_MSE": 1000, "thres_MAPE": 1000, "thres_Rsquared": 0} 
       }
      }

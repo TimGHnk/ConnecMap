@@ -1,8 +1,6 @@
-"""
-For analyses of flatmaps
+"""For analyses of flatmaps
 """
 import numpy
-import math
 import random
 import voxcell
 import matplotlib.pyplot as plt
@@ -35,8 +33,7 @@ def flatmap_to_coordinates(ann, fm, hierarchy_root):
     '''
     Allows to visualize the shape of region with 3d and 2d coordinates from a flatmap
     without using cache, you can theoritically visualize any regions from a given
-    annotation file. Note that you can only access the coordinates and no projection
-    data.
+    annotation file.
     '''
     lst_ids = list(hierarchy_root.get("id"))
     coords = []
@@ -69,7 +66,7 @@ def region_image(region, pxl, ann, hierarchy_root):
 
 def gradient_map(fm0, fm1, annotations, hierarchy_root, show=True, normalize=True, **kwargs):
     """Compute connectivity gradients of one region and plot them onto its anatomical
-    flatmap.
+    flatmap. Only considers the 2 first gradients.
     """
     region = hierarchy_root.data['acronym']
     if show is True:
@@ -91,12 +88,12 @@ def gradient_map(fm0, fm1, annotations, hierarchy_root, show=True, normalize=Tru
     tmp_img = coordinates_to_image(sub_ab, sub_xy)
     gY1, gX1 = numpy.gradient(tmp_img[:, :, 0])
     gY2, gX2 = numpy.gradient(tmp_img[:, :, 1])
-    ### Added
+    # remove zero values
     gX1[gX1 == 0] = 1e-10
     gY1[gY1 == 0] = 1e-10
     gX2[gX2 == 0] = 1e-10
     gY2[gY2 == 0] = 1e-10
-    ###
+
     if normalize:
         gX1, gY1 = normalize_gradient(gX1, gY1)
         gX2, gY2 = normalize_gradient(gX2, gY2)
@@ -147,32 +144,6 @@ def _compute_angle(x1, y1, x2, y2, ret_degree=False):
     return angle
 
 
-from cmath import rect, phase
-from math import radians, degrees
-
-def compass_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs):
-    gX1, gY1, gX2, gY2 = gradient_map(fm0, fm1, annotations, hierarchy_root, show=False)
-    compass_arr = gX1.copy()
-    for x,y in numpy.ndindex(compass_arr.shape):
-        if compass_arr[x,y] != numpy.isnan:
-            compass_arr[x,y] = _compute_mean_angle(gX1[x,y], gY1[x,y], gX2[x,y], gY2[x,y])
-    return compass_arr
-
-def mean_angle(deg):
-    return degrees(phase(sum(rect(1, radians(d)) for d in deg)/len(deg)))
-
-def _compute_mean_angle(x1, y1, x2, y2): # TODO: improve code
-    deg1 = math.atan2(x1, y1) / math.pi * 180
-    if deg1 < 0:
-        deg1 = abs(deg1+180) + 180
-    deg2 = math.atan2(x2, y2) / math.pi * 180
-    if deg2 < 0:
-        deg2 = abs(deg2+180) + 180
-    orientation = mean_angle([deg1, deg2])
-    if orientation < 0:
-        orientation = 360 - abs(orientation)
-    return orientation
-
 
 def gradient_deviation(fm0, fm1, annotations, hierarchy_root, plot=True, **kwargs):
     """Compute the gradient deviations for each pixels, i.e. how much the angle between
@@ -193,67 +164,7 @@ def gradient_deviation(fm0, fm1, annotations, hierarchy_root, plot=True, **kwarg
     if 'output_root' in kwargs:
         save_results('gradient_deviation', numpy.mean(deviations), hierarchy_root.data['acronym'], kwargs['output_root'])
     return deviations
-
-def vector_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs):
-    gX1, gY1, gX2, gY2 = gradient_map(fm0, fm1, annotations, hierarchy_root, show=False)
-    X_vector = gX1.copy()
-    Y_vector = gX1.copy()
-    for x,y in numpy.ndindex(X_vector.shape):
-        if X_vector[x,y] != numpy.isnan:
-            X_vector[x,y], Y_vector[x,y] = _compute_vector(gX1[x,y], gY1[x,y], gX2[x,y], gY2[x,y], **kwargs)
-    return X_vector, Y_vector
-
-def _compute_vector(x1, y1, x2, y2, ret_degree=False):
-    vec_x = math.atan2(x1, y1)
-    vec_y = math.atan2(x2, y2)
-    if ret_degree is True:
-        vec_x = numpy.rad2deg(vec_x)
-        if vec_x < 0:
-            vec_x = 360 - abs(vec_x)
-        vec_y = numpy.rad2deg(vec_y)
-        if vec_y < 0:
-            vec_y = 360 - abs(vec_x)
-    return vec_x, vec_y
     
-
-def gradient_std(fm0, fm1, annotations, hierarchy_root, **kwargs):
-    deg_arr = degree_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
-    standard_dev = numpy.std(deg_arr[~numpy.isnan(deg_arr)])
-    if 'output_root' in kwargs:
-        save_results('gradient_std', standard_dev, hierarchy_root.data['acronym'], kwargs['output_root'])
-    return standard_dev
-
-def mean_gradient_var(fm0, fm1, annotations, hierarchy_root, **kwargs):
-    mean_grad = compass_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
-    grad_var = numpy.var(mean_grad[~numpy.isnan(mean_grad)])
-    if 'output_root' in kwargs:
-        save_results('mean_gradient_variance', grad_var, hierarchy_root.data['acronym'], kwargs['output_root'])
-    return grad_var
-
-def sum_of_gradient_var(fm0, fm1, annotations, hierarchy_root, ret_degree=True, **kwargs):
-    X_vectors, Y_vectors = vector_matrix(fm0, fm1, annotations, hierarchy_root, ret_degree=True)
-    mean_var = numpy.var(X_vectors[~numpy.isnan(X_vectors)]) + numpy.var(Y_vectors[~numpy.isnan(Y_vectors)])
-    if 'output_root' in kwargs:
-        save_results('sum_gradients_variance', mean_var, hierarchy_root.data['acronym'], kwargs['output_root'])
-    return mean_var
-
-def mean_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, **kwargs):
-    mean_vector = compass_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
-    vector_var = numpy.var(mean_vector[~numpy.isnan(mean_vector)])
-    vector_mean = numpy.var(mean_vector[~numpy.isnan(mean_vector)])
-    dispersion = vector_var / vector_mean
-    if 'output_root' in kwargs:
-        save_results('mean_gradient_dispersion', dispersion, hierarchy_root.data['acronym'], kwargs['output_root'])
-    return dispersion
-
-def sum_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, ret_degree=True, **kwargs):
-    X_vectors, Y_vectors = vector_matrix(fm0, fm1, annotations, hierarchy_root, ret_degree=True)
-    X_disp = numpy.var(X_vectors[~numpy.isnan(X_vectors)]) / numpy.mean(X_vectors[~numpy.isnan(X_vectors)])
-    Y_disp = numpy.var(Y_vectors[~numpy.isnan(Y_vectors)]) / numpy.mean(Y_vectors[~numpy.isnan(Y_vectors)])
-    dispersion = X_disp + Y_disp
-    if 'output_root' in kwargs:
-        save_results('sum_gradient_dispersion', dispersion, hierarchy_root.data['acronym'], kwargs['output_root'])
-    return dispersion
 
 def reversal_index(fm0, fm1, annotations, hierarchy_root, **kwargs):
     """Compute the reversal index of one region, i.e. a measure of how much the connectivity
@@ -353,13 +264,7 @@ def save_results(analysis_name, results, region, analysis_root):
 
 gradient_map_from_parcellation = from_parcellation(gradient_map)
 degree_matrix_from_parcellation = from_parcellation(degree_matrix)
-vector_matrix_from_parcellation = from_parcellation(vector_matrix)
 banana_factor_from_parcellation = from_parcellation(banana_factor)
 reversal_index_from_parcellation = from_parcellation(reversal_index)
 gradient_deviation_from_parcellation = from_parcellation(gradient_deviation)
-sum_gradient_variance_from_parcellation = from_parcellation(sum_of_gradient_var)
-mean_gradient_variance_from_parcellation = from_parcellation(mean_gradient_var)
-mean_gradient_dispersion_from_parcellation = from_parcellation(mean_gradient_dispersion)
-sum_gradient_dispersion_from_parcellation = from_parcellation(sum_gradient_dispersion)
-gradient_std_from_parcellation = from_parcellation(gradient_std)
 pre_image_of_flatmap = from_parcellation(find_pre_images)
