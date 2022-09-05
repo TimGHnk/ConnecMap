@@ -1,0 +1,16 @@
+Metadata-Version: 1.1
+Name: parcellation-project
+Version: 0.1
+Summary: Build connectivity-based mouse's isocortex parcellation
+Home-page: http://bluebrain.epfl.ch
+Author: ['Timothé Guyonnet-Hencke', 'Michael W. Reimann']
+Author-email: ['timothe.guyonnet@gmail.com']
+License: LGPL-3.0
+Description: UNKNOWN
+Keywords: neuroscience,brain,plasticity,modelling,connectomics
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: License :: LGPL-3.0
+Classifier: Operating System :: POSIX
+Classifier: Topic :: Utilities

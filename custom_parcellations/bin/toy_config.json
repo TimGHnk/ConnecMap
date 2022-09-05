@@ -1,0 +1,15 @@
+{
+    "width": 40,
+    "height": 40,
+    "depth": 2,
+    "architecture": {"architecture": "regular",
+                        "grid": [2,1],
+                        "hierarchy": [{"level": "level_2",
+                                            "grid": [2,2]},
+                                        {"level": "level_3",
+                                            "grid": [4,4]}]},
+    "connectivity": {"noise": 5.0},
+    "method": "reversing_hierarchy",
+    "split_with": "reversal_detector"
+}
+  

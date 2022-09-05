@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
             char.append(dict({"region": _regions["flatten"][0], # adding lambdas for each region
                               "selected_lambda_ratios": list(component_lambda_ratios),
-                              "lambdas": list(embed_stats["lambdas"]})))
+                              "lambdas": list(embed_stats["lambdas"])}))
                 
         embed_coords_final = embed_coords_final[:, components_to_use]
         embed_coords_final = normalize_fm_coordinates(embed_coords_final, _regions.get("normalization_args", {}))

@@ -786,25 +786,6 @@ class RubixBrain(object):
                 self.df_ri.loc[len(self.df_ri), self.df_ri.columns] = reg, ri
                 self.df_ri = self.df_ri.drop_duplicates(subset='region', keep='first', inplace=False)
                 
-        def results_last_parc(self, df=None, save=False):
-            if df is None:
-                df = pd.DataFrame(columns=("method", "noise", "algo", "gd", "ri"))
-            gd = self.df_gd.copy()
-            ri = self.df_ri.copy()
-            max_split = max([gd.loc[i, "region"].count("_") for i in gd.index])
-            idx = [i for i in gd.index if gd.loc[i, "region"].count("_") == max_split]
-            self.df_gd = gd.loc[idx]
-            self.df_ri = ri.loc[idx]
-            method = self.hierarchy_method 
-            algo = self.split_with
-            noise = self.noise_amplitude
-            dftemp = self.df_gd
-            dftemp["reversal_index"] = self.df_ri["reversal_index"]
-            dftemp["method"] = method
-            dftemp["algo"] = algo
-            dftemp["noise"] = noise
-            df = pd.concat((df, dftemp))                
-            return df
 # 
 def run_splitting(rubix, n_comp, method, C=0.1, gamma=0.01, t=1, thresh_size=30,
                   save=False, show=False,**kwargs):
@@ -968,3 +949,13 @@ plt.figure(figsize=(5,6)).gca()
 sns.barplot(x="method", y="reversal_index", hue="algo.noise", data=df0, ci="sd", capsize=0.03)
 plt.ylim(0, max(df0["reversal_index"]))
 plt.show()
+
+
+if __name__ == "__main__":
+
+    import argparse, os, json
+    parser = argparse.ArgumentParser(description='Build a diffusion based flatmap\n')
+
+    parser.add_argument('--config', help='Config of the toy model')
+    parser.add_argument('--save', help='Path to save output')
+    args = parser.parse_args()

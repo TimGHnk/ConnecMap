@@ -1,0 +1,10 @@
+rectangle-packer>=2.0.0
+numpy>=1.18.5
+voxcell>=2.6.3
+pynrrd>=0.4.2
+sklearn
+matplotlib>=3.3.3
+scipy>=1.6.0
+Pillow>=8.1.0
+IPython>=7.19.0
+pandas>=0.25.3
