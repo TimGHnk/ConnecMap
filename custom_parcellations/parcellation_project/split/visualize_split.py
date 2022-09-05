@@ -13,7 +13,7 @@ def binary_classification_for_visualization(parc_level, r, **kwargs):
     fm0_fn = parc_level._config["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     annotations = parc_level.region_volume
-    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
     deg_arr = fm_analyses.degree_matrix_from_parcellation(parc_level, r, normalize=True)
     results = splt.binary_classification(deg_arr, coords2d)
     return results
@@ -24,7 +24,7 @@ def HDBSCAN_classification_for_visualization(parc_level, r, **kwargs):
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap
     annotations = parc_level.region_volume
-    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
     coords2d = numpy.unique(coords2d, axis=0)
     x1, y1, x2, y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False)
     results = splt.HDBSCAN_classification(x1, y1, x2, y2, coords2d, **kwargs)
@@ -36,7 +36,7 @@ def quadri_classification_for_visualization(parc_level, r, **kwargs):
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap
     annotations = parc_level.region_volume
-    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+    coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
     coords2d = numpy.unique(coords2d, axis=0)
     x1, y1, x2, y2 = fm_analyses.gradient_map(fm0, fm1, annotations, r, show=False)
     results = splt.quadri_classification(x1, y1, x2, y2, coords2d)
@@ -68,7 +68,7 @@ def cosine_distance_clustering_for_visualization(parc_level, r, alpha, eps, min_
     char = parc_level.characterization
     gXs, gYs = extract_gradients(fm0, fm1, annotations, r)
     lambdas = [i for i in char if i["region"] == r.data["acronym"]][0]["lambdas"]
-    _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+    _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
     coords2d = numpy.unique(coords2d, axis=0)
     solution = cosine_distance_clustering(gXs, gYs, coords2d, lambdas, alpha, eps, min_cluster_size, min_samples, N)
     return solution
@@ -176,7 +176,7 @@ def overlay_img(fm0, annotations, hierarchy_root, lst_regions):
     i = 1
     for reg in lst_regions:
         hierarchy_reg = hierarchy_root.find('acronym', reg)[0]
-        three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
+        _, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
         idx = numpy.zeros((len(two_d_coords), 1)) + i
         coords_lst.append(numpy.column_stack((two_d_coords, idx)))
         i += 1

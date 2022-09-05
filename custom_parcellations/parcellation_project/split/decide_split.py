@@ -36,7 +36,7 @@ def binary_classification_from_parcellation(parc_level, **kwargs):
         r = parc_level.hierarchy_root.find("acronym", region_name)
         assert len(r) == 1
         r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
         coords2d = numpy.unique(coords2d, axis=0)
         deg_arr = fm_analyses.degree_matrix_from_parcellation(parc_level, r, normalize=True)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
@@ -76,7 +76,7 @@ def quadri_classification_from_parcellation(parc_level, **kwargs):
         r = parc_level.hierarchy_root.find("acronym", region_name)
         assert len(r) == 1
         r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
         reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
@@ -100,7 +100,7 @@ def reversal_detector_from_parcellation(parc_level, **kwargs):
         r = parc_level.hierarchy_root.find("acronym", region_name)
         assert len(r) == 1
         r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
         reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
@@ -110,7 +110,7 @@ def reversal_detector_from_parcellation(parc_level, **kwargs):
         if split_is_required:
             results[region_name] = reversal_detector(region_name,
                                                     fm0, fm1,
-                                                    annotations, r,
+                                                    annotations, r, hemisphere = parc_level._config["hemisphere"],
                                                     pre_filter_sz=kwargs["pre_filter_sz"],
                                                     post_filter_sz=kwargs["post_filter_sz"],
                                                     min_seed_cluster_sz=kwargs["min_seed_cluster_sz"],
@@ -131,7 +131,7 @@ def cosine_distance_clustering_from_parcellation(parc_level, **kwargs):
         r = parc_level.hierarchy_root.find("acronym", region_name)
         assert len(r) == 1
         r = r[0]
-        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
+        _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r, hemisphere=parc_level._config["hemisphere"])
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
         reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
@@ -299,7 +299,7 @@ def unflattening(parc_level, region, solution, only_sort=False):
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     annotations = parc_level.region_volume
     hier = parc_level.hierarchy_root.find("acronym", region)[0]
-    three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hier)
+    three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hier, hemisphere=parc_level._config["hemisphere"])
     if only_sort == False:
         sort_coords = numpy.column_stack((two_d_coords, numpy.zeros((len(two_d_coords),1))))
         for i in range(len(sort_coords)):

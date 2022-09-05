@@ -43,12 +43,12 @@ def _mi_implementation(distribution_initial, distribution_split):
 
 
 
-def mutual_information_regions(vol0, vol1, hierarchy0, modules, plot=True, right_hemisphere=True, **kwargs):
+def mutual_information_regions(vol0, vol1, hierarchy0, modules, hemisphere, plot=True, **kwargs):
     '''Computes the information gain of the regions' distribution of the 
     traditional parcellation scheme (CCF, v3) depending on the custom
     parcellation scheme.
     '''
-    distrib0, distrib1 = distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=right_hemisphere)
+    distrib0, distrib1 = distribution_regions(vol0, vol1, hierarchy0, modules, hemisphere=hemisphere)
     info_gain, prior_entropy =  _mi_implementation(distrib0, distrib1)
     if plot is True:
         plot_info_gain(prior_entropy, info_gain, method='regions')
@@ -64,12 +64,12 @@ def mutual_information_regions(vol0, vol1, hierarchy0, modules, plot=True, right
             plt.show()
         return prior_entropy, info_gain
     
-def mutual_information_layers(vol0, vol1, hierarchy0, modules, plot=True, right_hemisphere=True, **kwargs):
+def mutual_information_layers(vol0, vol1, hierarchy0, modules, hemisphere, plot=True, **kwargs):
     '''Computes the information gain of the layers' distribution of the 
     traditional parcellation scheme (CCF, v3) depending on the custom
     parcellation scheme.
     '''
-    distrib0, distrib1 = distribution_layers(vol0, vol1, hierarchy0, modules, right_hemisphere=right_hemisphere)
+    distrib0, distrib1 = distribution_layers(vol0, vol1, hierarchy0, modules, hemisphere=hemisphere)
     info_gain, prior_entropy =  _mi_implementation(distrib0, distrib1)
     if plot is True:
         plot_info_gain(prior_entropy, info_gain, method='layers')
@@ -121,13 +121,13 @@ def plot_overlap(overlap, iso_regions, new_regions, **kwargs):
 
 
 
-def overlap_two_parcellations(vol0, vol1, hierarchy0, modules, plot=True, right_hemisphere=True, **kwargs):
+def overlap_two_parcellations(vol0, vol1, hierarchy0, modules, hemisphere, plot=True, **kwargs):
     ''' Returns the ratio of each region from parcellation A contained in each region 
     from parcellation B.
     '''
     curr_modules = list(modules.values())
     reg_names, _ = regions_and_layers(hierarchy0, vol0)
-    _, distrib1 = distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=right_hemisphere)
+    _, distrib1 = distribution_regions(vol0, vol1, hierarchy0, modules, hemisphere=hemisphere)
     df_ratio = pd.DataFrame({})
     df_ratio['name'] = reg_names
     for j in range(len(distrib1)):
@@ -145,16 +145,20 @@ def overlap_two_parcellations(vol0, vol1, hierarchy0, modules, plot=True, right_
         return df_ratio
     
 
-def distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=True):
+def distribution_regions(vol0, vol1, hierarchy0, modules, hemisphere):
     ''' Returns one dictionary of the number of voxels of each regions of the 
     traditional parcellation scheme (CCF,v3) in the isocortex and its distribution.
     Returns another dictionary correponding of the
     number of voxels, distribution and the ratio of these regions within the regions
     of the custom parcellation scheme.
     '''
-    if right_hemisphere is True:
-        vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2) : int(vol0.raw.shape[2])].copy()
-        vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2) : int(vol1.raw.shape[2])].copy()
+    if hemisphere == "right":
+        vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2):].copy()
+        vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2):].copy()
+    elif hemisphere == "left":
+        vol0.raw = vol0.raw[:,:,:int(vol0.raw.shape[2]/2)].copy()
+        vol1.raw = vol1.raw[:,:,:int(vol1.raw.shape[2]/2)].copy()
+
     reg_names, _ = regions_and_layers(hierarchy0, vol0)
     valid_ids  = [list(hierarchy0.collect('acronym', reg, 'id')) for reg in reg_names]
     valid_ids = [idx for sublist in valid_ids for idx in sublist]
@@ -185,16 +189,20 @@ def distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=True)
     return distrib0, distrib1
 
 
-def distribution_layers(vol0, vol1, hierarchy0, modules, right_hemisphere=True):
+def distribution_layers(vol0, vol1, hierarchy0, modules, hemisphere):
     ''' Returns one dictionary of the number of voxels of each layers of the 
     traditional parcellation scheme (CCF,v3) in the isocortex and its distribution.
     Returns another dictionary correponding of the
     number of voxels, distribution and the ratio of these layers within the regions
     of the custom parcellation scheme.
     '''
-    if right_hemisphere is True:
-        vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2) : int(vol0.raw.shape[2])].copy()
-        vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2) : int(vol1.raw.shape[2])].copy()
+    if hemisphere == "right":
+        vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2):].copy()
+        vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2):].copy()
+    elif hemisphere == "left":
+        vol0.raw = vol0.raw[:,:,:int(vol0.raw.shape[2]/2)].copy()
+        vol1.raw = vol1.raw[:,:,:int(vol1.raw.shape[2]/2)].copy()
+
     reg_names, layers = regions_and_layers(hierarchy0, vol0)
     valid_ids  = [list(hierarchy0.collect('acronym', reg, 'id')) for reg in reg_names]
     valid_ids = [idx for sublist in valid_ids for idx in sublist]

@@ -29,17 +29,23 @@ def from_parcellation(base_func):
 
 
 
-def flatmap_to_coordinates(ann, fm, hierarchy_root):
+def flatmap_to_coordinates(ann, fm, hierarchy_root, hemisphere="right"):
     '''
-    Allows to visualize the shape of region with 3d and 2d coordinates from a flatmap
-    without using cache, you can theoritically visualize any regions from a given
-    annotation file.
+    Allows to visualize the shape of region with 3d and 2d coordinates from a flatmap.
     '''
+
+    if hemisphere == "both":
+        offset_start, offset_end = 0, int(ann.raw.shape[2])
+    elif hemisphere == "right":
+            offset_start, offset_end = int(ann.raw.shape[2]/2), int(ann.raw.shape[2])
+    elif hemisphere == "left":
+            offset_start, offset_end = 0, int(ann.raw.shape[2]/2)
+
     lst_ids = list(hierarchy_root.get("id"))
     coords = []
     for x in range(int(ann.raw.shape[0])):
         for y in range(int(ann.raw.shape[1])):
-            for z in range(int(ann.raw.shape[2]/2),int(ann.raw.shape[2])):
+            for z in range(offset_start, offset_end):
                 if ann.raw[x,y,z] in lst_ids:
                     coords.append([x,y,z])
     coords_3d = numpy.vstack(coords)
@@ -166,11 +172,11 @@ def gradient_deviation(fm0, fm1, annotations, hierarchy_root, plot=True, **kwarg
     return deviations
     
 
-def reversal_index(fm0, fm1, annotations, hierarchy_root, **kwargs):
+def reversal_index(fm0, fm1, annotations, hierarchy_root, hemisphere, **kwargs):
     """Compute the reversal index of one region, i.e. a measure of how much the connectivity
     gradients reverse.
     """
-    three_d_coords, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_root)
+    _, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_root, hemisphere)
     two_d_coords = numpy.unique(two_d_coords, axis=0)
     x1,y1,x2,y2 = gradient_map(fm0, fm1, annotations, hierarchy_root, show=False) 
     if numpy.count_nonzero(~numpy.isnan(x1)) < 2: # 1 or less gradient, won't work
@@ -214,7 +220,7 @@ def banana_factor(fm0, fm1, annotations, hierarchy_root, plot=True, **kwargs):
         save_results('banana_factor', numpy.nanmean(banana), hierarchy_root.data['acronym'], kwargs['output_root'])
     return banana
 
-def find_pre_images(fm0, fm1, annotations, hierarchy_root, method, n=10):
+def find_pre_images(fm0, fm1, annotations, hierarchy_root, method, hemisphere, n=10):
     '''Returns a list of the preimages of random pixels (n=number of random pixels,
     defaults is set to 10) of either the anatomical of the diffusion flatmap.
     method = anatomical OR diffusion. If n > number of pixels returns the pre images
@@ -228,7 +234,7 @@ def find_pre_images(fm0, fm1, annotations, hierarchy_root, method, n=10):
         flatmap = fm1
     else:
         raise ValueError("flatmap not recognized, use 'anatomical' or 'diffusion'")
-    coords_3d, coords_2d = flatmap_to_coordinates(annotations, flatmap, hierarchy_root)
+    coords_3d, coords_2d = flatmap_to_coordinates(annotations, flatmap, hierarchy_root, hemisphere)
     coords_2d = numpy.round(numpy.unique(coords_2d, axis=0))
     fm = numpy.round(flatmap.raw)
     x_fm = fm[:,:,:,0]

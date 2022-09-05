@@ -1,5 +1,7 @@
 ''' Make a null connectivity dataset under the assumption of a 
     continuous and homogenous connectivity.
+    NOTE: Currently only the regular architecture is supported, the irregular
+    one is still in development.
 '''
 import numpy
 import voxcell
@@ -425,17 +427,19 @@ def flatmap_to_coordinates1(ann, fm, hierarchy_root):
 # OBJECT
 class RubixBrain(object):
     def __init__(self, config):
+        assert (config.get("method") == "node_distance") | (config.get("method") == "reversing_hierarchy"), "This method doesn't exist"
+        assert (config["architecture"].get("architecture") == "regular") | (config["architecture"].get("architecture") == "irregular"), "This architecture is not recognized"
+        assert (config.get("split_with") == "reversal_detector") | (config.get("split_with") == "hdbscan"), "This splitting method is not recognized"
+
         self.width = config.get("width")
         self.height = config.get("height")
         self.depth = config.get("depth")
         self.noise_amplitude = config["connectivity"].get("noise")
-        assert (config.get("method") == "node_distance") | (config.get("method") == "reversing_hierarchy"), "This method doesn't exist"
         self.hierarchy_method = config.get("method")
-        assert (config["architecture"].get("topology") == "regular") | (config["architecture"].get("topology") == "irregular"), "This topology is not recognized"
-        self._topology = config["architecture"].get("topology")
-        assert (config.get("split_with") == "reversal_detector") | (config.get("split_with") == "hdbscan"), "This splitting method is not recognized"
+        self._architecture = config["architecture"].get("architecture")
         self.split_with = config.get("split_with")
-        if self._topology == "regular":
+
+        if self._architecture == "regular":
             self.grid = config["architecture"].get("grid")
             if config["architecture"].get("hierarchy") is not None:
                 self._hierarchical = True
@@ -446,7 +450,7 @@ class RubixBrain(object):
                 self._hierarchical = False
                 self.number_regions = self.grid[0] * self.grid[1]
                 self.levels = 1
-        elif self._topology == "irregular":
+        elif self._architecture == "irregular":
             self.hierarchical = config["architecture"].get("hierarchy")
             self.levels = self.hierarchical["levels"]
             self.n_split = self.hierarchical["n_split"]
@@ -462,9 +466,9 @@ class RubixBrain(object):
         self.__initialize__()
         
     def __initialize__(self):
-        if self._topology == "regular":
+        if self._architecture == "regular":
             ann, hier, fm0, fm1 = regularRubix(self)
-        elif self._topology == "irregular":
+        elif self._architecture == "irregular":
             ann, hier, fm0, fm1 = irregularRubix(self, self.n_split, self.n_by_split)
         
         self.hierarchy = hier
@@ -879,7 +883,7 @@ def results_last_parc(rubix, df=None, save=False):
 rubix_config = dict({"width": 40,
                       "height": 40,
                       "depth": 2,
-                      "architecture": dict({"topology": "regular",
+                      "architecture": dict({"architecture": "regular",
                                             "grid": [2,1],
                                             "hierarchy": [dict({"level": "level_2",
                                                                 "grid": [2,2]}),
@@ -926,7 +930,7 @@ for i in range(len(conditions)):
     rubix_config = dict({"width": 40,
                           "height": 40,
                           "depth": 2,
-                          "architecture": dict({"topology": "regular",
+                          "architecture": dict({"architecture": "regular",
                                                 "grid": [2,1],
                                                 "hierarchy": [dict({"level": "level_2",
                                                                     "grid": [2,2]}),

@@ -79,7 +79,7 @@ class ParcellationProject(object):
         from parcellation_project.analyses import parcellation  # module for all analyses of parcellations
         for analysis_name in self.lvl_cfg["analyses"]["parcellation"]:
             function = parcellation.__dict__[analysis_name]
-            function(self.current_level, output_root=self.current_level.analysis_root)
+            function(self.current_level, output_root=self.current_level.analysis_root, hemisphere=self.current_level._config["hemisphere"])
 
 
     def analyze_current_flatmap(self):
@@ -93,7 +93,7 @@ class ParcellationProject(object):
                 region_root = self.current_level.hierarchy_root.find("acronym", region_name)
                 assert len(region_root) == 1
                 function = flatmaps.__dict__[analysis_name]
-                function(self.current_level, region_root[0], output_root=self.current_level.analysis_root)
+                function(self.current_level, region_root[0], output_root=self.current_level.analysis_root, hemisphere=self.current_level._config["hemisphere"])
 
     def __apply_split__(self, split_solution):
         from parcellation_project.tree_helpers import deep_copy
