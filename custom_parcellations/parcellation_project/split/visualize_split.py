@@ -166,6 +166,10 @@ def viz_gradient_split(coords2d, fm0, fm1, annotations, hierarchy_root, title=No
     if scale_cbar > 1: scale_cbar = 1
     plt.colorbar(image, ax=ax, ticks=numpy.arange(len(classes)), shrink=scale_cbar, orientation="horizontal", pad=0.05)
     plt.axis((x_min-3,x_max+3,y_min-3,y_max+5))
+
+    if "savedir" in kwargs:
+        plt.savefig(kwargs["savedir"])
+        
     plt.show()
 
 

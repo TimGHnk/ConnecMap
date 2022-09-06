@@ -16,11 +16,11 @@ from parcellation_project.tree_helpers import at_depth, max_depth
 import pandas as pd
 from scipy.cluster.hierarchy import ward, fcluster
 import hdbscan
-from parcellation_project.split.decide_split import HDBSCAN_classification
+from parcellation_project.split.decide_split import cosine_distance_clustering
 from parcellation_project.split import reversal_detector
 from parcellation_project.split.decide_split import split_with_SVM, extract_subregions, merge_lonely_voxels
 from parcellation_project.split.visualize_split import viz_gradient_split
-from parcellation_project.analyses.flatmaps import gradient_deviation, reversal_index
+from parcellation_project.analyses.flatmaps import gradient_deviation, reversal_index, flatmap_to_coordinates
 from parcellation_project.split.cosine_distance_clustering import extract_gradients, cosine_distance_clustering
 
     
@@ -389,7 +389,7 @@ def unflattening(ann, fm0, hier, solution, only_sort=False):
     Add a sorting coordinates process to keep consistency.
     Set only_sort=True if you want to skip the unflattening process.
     '''
-    three_d_coords, two_d_coords = flatmap_to_coordinates1(ann, fm0, hier)
+    three_d_coords, two_d_coords = flatmap_to_coordinates(ann, fm0, hier, hemisphere="both")
     if only_sort == False:
         sort_coords = numpy.column_stack((two_d_coords, numpy.zeros((len(two_d_coords),1))))
         for i in range(len(sort_coords)):
@@ -401,28 +401,6 @@ def unflattening(ann, fm0, hier, solution, only_sort=False):
             voxel_clf[i,-1] = solution[numpy.where((voxel_clf[i,:-1] == solution[:,:-1]).all(1))[0][0],-1]
     return voxel_clf
 
-def flatmap_to_coordinates1(ann, fm, hierarchy_root):
-    '''
-    Allows to visualize the shape of region with 3d and 2d coordinates from a flatmap
-    without using cache, you can theoritically visualize any regions from a given
-    annotation file.
-    '''
-    lst_ids = list(hierarchy_root.get("id"))
-    coords = []
-    for x in range(int(ann.raw.shape[0])):
-        for y in range(int(ann.raw.shape[1])):
-            for z in range(int(ann.raw.shape[2])):
-                if ann.raw[x,y,z] in lst_ids:
-                    coords.append([x,y,z])
-    coords_3d = numpy.vstack(coords)
-    coords = []
-    flatmap = numpy.round(fm.raw)
-    x_fm = flatmap[:,:,:,0]
-    y_fm = flatmap[:,:,:,1]
-    for xyz in coords_3d:
-        coords.append([x_fm[xyz[0], xyz[1], xyz[2]], y_fm[xyz[0], xyz[1], xyz[2]]])
-    coords_2d = numpy.vstack(coords)
-    return coords_3d, coords_2d
 
 # OBJECT
 class RubixBrain(object):
@@ -514,7 +492,7 @@ class RubixBrain(object):
         return connectivity_matrix
 
     def hierarchical_connectivity(self):
-        three_d_coords, _ = flatmap_to_coordinates1(self.annotation, self.anatomical_flatmap,
+        three_d_coords, _ = flatmap_to_coordinates(self.annotation, self.anatomical_flatmap,
                                                     self.hierarchy)
         nodes_distance = all_nodes_distance(self.hierarchy)
         connectivity_matrix = numpy.zeros((len(three_d_coords), len(three_d_coords)))
@@ -531,24 +509,24 @@ class RubixBrain(object):
         if self.hierarchy_method == "reversing_hierarchy":
             if self._hierarchical == False:
                 # get scaling distance constant:
-                three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+                three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                               self.null_diffusion_flatmap,
                                                               self.hierarchy)
                 self.scaling_distance = numpy.amax(cdist(diff_coords,diff_coords,metric="sqeuclidean")) + 1
-                three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+                three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                                       self.null_diffusion_flatmap,
                                                                       self.hierarchy)
     
                 connectivity_matrix = self.build_connectivity_matrix(diff_coords)
             else:
                 # get scaling distance constant:
-                three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+                three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                               self.null_diffusion_flatmap[0],
                                                               self.hierarchy)
                 self.scaling_distance = numpy.amax(cdist(diff_coords,diff_coords,metric="sqeuclidean")) + 1
                 con_matrices = []
                 for diffusion_fm in self.null_diffusion_flatmap:
-                    three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+                    three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                           diffusion_fm,
                                                           self.hierarchy)
                     con_matrices.append(self.build_connectivity_matrix(diff_coords))
@@ -559,11 +537,11 @@ class RubixBrain(object):
             self.connectivity_data = null_data
         elif self.hierarchy_method == "node_distance":
             # get scaling distance constant:
-            three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+            three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                           self.null_diffusion_flatmap,
                                                           self.hierarchy)
             self.scaling_distance = numpy.amax(cdist(diff_coords,diff_coords,metric="sqeuclidean")) + 1
-            three_d_coords, diff_coords = flatmap_to_coordinates1(self.annotation,
+            three_d_coords, diff_coords = flatmap_to_coordinates(self.annotation,
                                                                   self.null_diffusion_flatmap,
                                                                   self.hierarchy)
     
@@ -618,7 +596,7 @@ class RubixBrain(object):
         lambdas_val = []
         for n in range(len(flattening_config)):
             to_flatten = flattening_config[n]["flatten"][0]
-            reg_coords, _ = flatmap_to_coordinates1(ann, self.anatomical_flatmap, r.find("acronym", to_flatten)[0])
+            reg_coords, _ = flatmap_to_coordinates(ann, self.anatomical_flatmap, r.find("acronym", to_flatten)[0])
             # From the whole connectivity dataset, extract rows corresponding to the region to flatten
             c = cdist(self.connectivity_data[:,:3], reg_coords)==0
             connectivity_matrix = self.connectivity_data[:,3:][c.any(axis=1)]
@@ -693,7 +671,7 @@ class RubixBrain(object):
             try:
                 lambdas = [i for i in char if i["region"] == reg][0]["lambdas"]
                 hierarchy_reg = self.custom_hierarchy.find("acronym", reg)[0]
-                _, two_d_coords = flatmap_to_coordinates1(self.custom_annotation, self.anatomical_flatmap, hierarchy_reg)
+                _, two_d_coords = flatmap_to_coordinates(self.custom_annotation, self.anatomical_flatmap, hierarchy_reg)
                 two_d_coords = numpy.unique(two_d_coords, axis=0).astype("int")
                 gXs, gYs = extract_gradients(self.anatomical_flatmap, diffusion_fm, 
                                              self.custom_annotation, hierarchy_reg)
@@ -737,8 +715,8 @@ class RubixBrain(object):
                         self.update_parcellation(solution4, reg)
             except: continue
         
-    def viz_custom_parcellation(self, fm1):
-        three_d_coords, two_d_coords = flatmap_to_coordinates1(self.custom_annotation,
+    def viz_custom_parcellation(self, fm1, **kwargs):
+        three_d_coords, two_d_coords = flatmap_to_coordinates(self.custom_annotation,
                                                                 self.anatomical_flatmap,
                                                                 self.custom_hierarchy)
         label = numpy.zeros((len(three_d_coords), 1))
@@ -748,7 +726,7 @@ class RubixBrain(object):
         coords2d = numpy.column_stack((two_d_coords, label))
         viz_gradient_split(coords2d, self.anatomical_flatmap, fm1,
                            self.custom_annotation,
-                           self.custom_hierarchy)
+                           self.custom_hierarchy, **kwargs)
         
     def analysis_gd(self, fm1):
         if hasattr(self, "df_gd") is False:
@@ -803,6 +781,7 @@ def run_splitting(rubix, n_comp, method, C=0.1, gamma=0.01, t=1, thresh_size=30,
     rubix.analysis_gd(fm1)
     rubix.analysis_ri(fm1)
     # start the loop
+    parc_id = 1
     complete = False
     parc_t1 = leaves(rubix.custom_hierarchy, "acronym")
     print("Starting the loop ...")
@@ -832,13 +811,15 @@ def run_splitting(rubix, n_comp, method, C=0.1, gamma=0.01, t=1, thresh_size=30,
         rubix.analysis_gd(fm1)
         rubix.analysis_ri(fm1)
         # plot and save
-        rubix.viz_custom_parcellation(fm1)
+        parc_name = f"D:/Documents/parcellation_{parc_id}.png"
+        rubix.viz_custom_parcellation(fm1, savedir=parc_name)
         parc_t2 = leaves(rubix.custom_hierarchy, "acronym")
         if parc_t2 == parc_t1:
             complete = True
             print("Parcellation complete !")
         else:
             parc_t1 = parc_t2
+            parc_id += 1
             
 def results_last_parc(rubix, df=None, save=False):
     if df is None:

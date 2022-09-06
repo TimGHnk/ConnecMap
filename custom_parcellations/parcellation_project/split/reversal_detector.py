@@ -218,11 +218,11 @@ def reversal_detector_tuner(image, pre_filter_sz, post_filter_sz, min_seed_clust
         component_star = min(scores, key=scores.get)
     return component_star
 
-def reversal_detector(region, fm0, fm1, annotations, hierarchy_root, hemisphere, component="optimized",
-                       pre_filter_sz=5, post_filter_sz=1, min_seed_cluster_sz=4, border_thresh=0.05):
+def reversal_detector(region, fm0, fm1, annotations, hierarchy_root,component="optimized",
+                       pre_filter_sz=5, post_filter_sz=1, min_seed_cluster_sz=4, border_thresh=0.05, **kwargs):
     
     hierarchy_reg = hierarchy_root.find("acronym", region)[0]
-    _, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg, hemisphere)
+    _, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg, **kwargs)
     two_d_coords = numpy.unique(two_d_coords, axis=0)
     
     img = connectivity_structure(region, fm0, fm1, annotations, hierarchy_root)

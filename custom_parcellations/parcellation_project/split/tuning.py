@@ -5,7 +5,7 @@ import pandas as pd
 from parcellation_project.split import decide_split as splt
 import hdbscan
 from scipy.spatial.distance import pdist,squareform
-from parcellation_project.analyses.flatmaps import flatmap_to_coordinates, gradient_map, vector_matrix
+from parcellation_project.analyses.flatmaps import flatmap_to_coordinates, gradient_map
 from scipy.spatial.distance import cdist
 from parcellation_project.analyses.parcellation import _mi_implementation
 from parcellation_project.analyses.parcellation import mutual_information_two_parcellations
@@ -112,28 +112,6 @@ def noisy_quadri_classification(x1, y1, x2, y2, two_d_coords, noise_amplitude=0.
     out_scos = numpy.column_stack((two_d_coords, cls_inversion))
     return [out_ssin, out_scos]
 
-
-def tune_epsilon_HDBSCAN(fm0, fm1, annotations, hierarchy_reg):
-    three_d_coords, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
-    vector_x, vector_y = vector_matrix(fm0, fm1, annotations, hierarchy_reg)
-    vector_x = numpy.vstack(
-    [numpy.array([[vector_x[two_d_coords[i,0],two_d_coords[i,1]]]]) for i in range(len(two_d_coords))])
-    vector_y = numpy.vstack(
-        [numpy.array([[vector_y[two_d_coords[i,0],two_d_coords[i,1]]]]) for i in range(len(two_d_coords))])
-    vector_x = numpy.delete(vector_x, numpy.where(numpy.isnan(vector_x))[0], 0)
-    vector_y = numpy.delete(vector_y, numpy.where(numpy.isnan(vector_y))[0], 0)
-    plt.plot()
-    values_x, density_x = sns.distplot(vector_x).get_lines()[0].get_data()
-    values_y, density_y = sns.distplot(vector_y).get_lines()[1].get_data()
-    plt.close()
-    area_curve = sum(density_x) + sum(density_y)
-    max_x = max(density_x)
-    max_y = max(density_y)
-    epsilon = float(numpy.round(max_x / area_curve * max_x + max_y / area_curve * max_y,3))
-    if len(three_d_coords) > 1050:
-        min_cluster_size = 100
-    else: min_cluster_size = 50
-    return epsilon, min_cluster_size
 
 def tune_HDBSCAN_cluster_size(fm0, fm1, annotations, hierarchy_reg, show=False):
     results = pd.DataFrame(columns=['cluster_size', 'outliers_ratio', 'number_clusters',

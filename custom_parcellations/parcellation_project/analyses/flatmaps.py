@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from voxel_maps import coordinates_to_image
 import os
 import pandas as pd
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist
 
 
 
@@ -29,7 +29,7 @@ def from_parcellation(base_func):
 
 
 
-def flatmap_to_coordinates(ann, fm, hierarchy_root, hemisphere="right"):
+def flatmap_to_coordinates(ann, fm, hierarchy_root, hemisphere="both"):
     '''
     Allows to visualize the shape of region with 3d and 2d coordinates from a flatmap.
     '''
@@ -172,11 +172,11 @@ def gradient_deviation(fm0, fm1, annotations, hierarchy_root, plot=True, **kwarg
     return deviations
     
 
-def reversal_index(fm0, fm1, annotations, hierarchy_root, hemisphere, **kwargs):
+def reversal_index(fm0, fm1, annotations, hierarchy_root, **kwargs):
     """Compute the reversal index of one region, i.e. a measure of how much the connectivity
     gradients reverse.
     """
-    _, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_root, hemisphere)
+    _, two_d_coords = flatmap_to_coordinates(annotations, fm0, hierarchy_root, **kwargs)
     two_d_coords = numpy.unique(two_d_coords, axis=0)
     x1,y1,x2,y2 = gradient_map(fm0, fm1, annotations, hierarchy_root, show=False) 
     if numpy.count_nonzero(~numpy.isnan(x1)) < 2: # 1 or less gradient, won't work
