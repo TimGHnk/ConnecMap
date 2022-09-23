@@ -4,11 +4,12 @@
 
 import numpy
 import pandas
-from conntility import ConnectivityMatrix
 from scipy import stats, signal, sparse
 from scipy.spatial.distance import pdist, squareform
 import parcellation_project.analyses.flatmaps as fm_analyses
 from parcellation_project.plotting import connectivity_structure
+
+from ..tree_helpers import region_map_at
 
 def convolve(A, B):
         return signal.convolve2d(A, B, "same") / signal.convolve2d(numpy.ones_like(A), B, "same")
@@ -87,7 +88,10 @@ def weighted_neighbor_graph(y_flat, x_flat, b_flat):
 
 
 def connected_components_from_borders(cmat, magic_thresh, min_clst_sz=4):
-    raw_cc = sparse.csgraph.connected_components(cmat.filter().lt(magic_thresh).matrix)[1]
+    cmat = cmat.tocoo()
+    islt = cmat.data < magic_thresh
+    fltr_cmat = sparse.coo_matrix((cmat.data[islt], (cmat.row[islt], cmat.col[islt])), shape=cmat.shape)
+    raw_cc = sparse.csgraph.connected_components(fltr_cmat)[1]
     cc_counts = pandas.Series(raw_cc).value_counts()
     active_components = cc_counts.index[cc_counts > min_clst_sz].values.tolist()
     out_clst = numpy.array([active_components.index(x) if x in active_components else -1 for x in raw_cc])
@@ -123,14 +127,14 @@ def trace_fill_extrapolate(img, pre_filter_sz=5, post_filter_sz=1,
         print("Done! Building neighbor graph...")
     y_flat, x_flat, b_flat = flatten_borderness(borderness_vals)
     adj_mat = weighted_neighbor_graph(y_flat, x_flat, 1.0 - b_flat)
-    cmat = ConnectivityMatrix(adj_mat)
+    
     if message == True:
         print("Done! Calculating pairwise distances...")
     pw_dist_mat = sparse.csgraph.dijkstra(adj_mat, directed=False)
     pw_dist_mat = 0.5 * (pw_dist_mat + pw_dist_mat.transpose())
     if message == True:
         print("Done! Finding connected graph components...")
-    clst, quality = connected_components_from_borders(cmat, border_thresh, min_clst_sz=min_seed_cluster_sz)
+    clst, quality = connected_components_from_borders(adj_mat, border_thresh, min_clst_sz=min_seed_cluster_sz)
     if message == True:
         print("Done! Filling in missing cluster associations...")
     clst = interpolate_missing_clusters(clst, pw_dist_mat)
@@ -221,7 +225,7 @@ def reversal_detector_tuner(image, pre_filter_sz, post_filter_sz, min_seed_clust
 def reversal_detector(region, fm0, fm1, annotations, hierarchy_root, component="optimized",
                        pre_filter_sz=5, post_filter_sz=1, min_seed_cluster_sz=4, border_thresh=0.05):
     
-    hierarchy_reg = hierarchy_root.find("acronym", region)[0]
+    hierarchy_reg = region_map_at(hierarchy_root, region)
     three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
     two_d_coords = numpy.unique(two_d_coords, axis=0)
     

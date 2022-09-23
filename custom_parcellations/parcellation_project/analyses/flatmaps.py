@@ -16,11 +16,11 @@ from scipy.spatial.distance import pdist, squareform
 
 # Function below provides a wrapper that turns a function with multiple inputs into one that looks up most info from
 # the ParcellationLevel object.
-# The region_root input is a voxcell.Hierarchy object representing the region that is to be analyzed. If not provided
+# The region_root input is a voxcell.RegionMap object representing the region that is to be analyzed. If not provided
 # the root region is used, i.e. most likely Isocortex
 def from_parcellation(base_func):
     def returned_function(parc_level, region_root=None, **kwargs):
-        fm0_fn = parc_level._config["anatomical_flatmap"]
+        fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
         fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)
         annotations = parc_level.region_volume
         fm1 = parc_level.flatmap
@@ -38,7 +38,7 @@ def flatmap_to_coordinates(ann, fm, hierarchy_root):
     annotation file. Note that you can only access the coordinates and no projection
     data.
     '''
-    lst_ids = list(hierarchy_root.get("id"))
+    lst_ids = hierarchy_root.as_dataframe().index.values
     coords = []
     for x in range(int(ann.raw.shape[0])):
         for y in range(int(ann.raw.shape[1])):
@@ -60,7 +60,7 @@ def region_image(region, pxl, ann, hierarchy_root):
     xy = pxl.raw.reshape((-1, 2))
     img_xy = numpy.empty(shape=(0, 2))
     img_vals = numpy.empty(shape=(0, 1))
-    tgt_region_ids = list(hierarchy_root.collect('acronym', region, 'id'))
+    tgt_region_ids = list(hierarchy_root.find(region, "acronym", with_descendants=True))
     sub_xy = xy[numpy.in1d(ann_vals, tgt_region_ids), :]
     img_xy = numpy.vstack([img_xy, sub_xy])
     img_vals = numpy.vstack([img_vals, 0 * numpy.ones((len(sub_xy), 1))])
@@ -71,7 +71,8 @@ def gradient_map(fm0, fm1, annotations, hierarchy_root, show=True, normalize=Tru
     """Compute connectivity gradients of one region and plot them onto its anatomical
     flatmap.
     """
-    region = hierarchy_root.data['acronym']
+    from ..tree_helpers import region_map_to_dict
+    region = region_map_to_dict(hierarchy_root)['acronym']
     if show is True:
         ax = plt.figure(figsize=(20, 20)).gca()
         ax.imshow(region_image(region, fm0, annotations, hierarchy_root), cmap="tab20b")
@@ -84,7 +85,7 @@ def gradient_map(fm0, fm1, annotations, hierarchy_root, show=True, normalize=Tru
         l = numpy.sqrt(gX ** 2 + gY ** 2)
         return gX / l, gY / l
 
-    tgt_region_ids = list(hierarchy_root.collect('acronym', region, 'id'))
+    tgt_region_ids = list(hierarchy_root.find(region, "acronym", with_descendants=True))
     bitmask = numpy.in1d(ann_vals, tgt_region_ids)
     sub_xy = xy[bitmask]
     sub_ab = ab[bitmask]
@@ -179,19 +180,21 @@ def gradient_deviation(fm0, fm1, annotations, hierarchy_root, plot=True, **kwarg
     the 2 connectivity gradients deviates from 90°.
     If 'output_root' is in kwargs, save the mean gradient deviation for this region in a .csv file.
     """
+    from ..tree_helpers import region_map_to_dict
+    root_label = region_map_to_dict(hierarchy_root)["acronym"]
     deg_arr = degree_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
     bitmask = numpy.invert(numpy.isnan(deg_arr))
     deviations = [abs(deg_arr[bitmask].flatten()[i] - 90) for i in range(len(deg_arr[bitmask].flatten()))]
     if plot is True:
         fig1, ax1 = plt.subplots()
         ax1.boxplot(deviations, showfliers = True)
-        ax1.set_xticklabels([hierarchy_root.data['acronym']])
+        ax1.set_xticklabels([root_label])
         ax1.set_title("Gradients' deviation")
         if 'output_root' in kwargs:
-            plt.savefig(kwargs['output_root']+f"/gradient_deviation_{hierarchy_root.data['acronym']}.png")
+            plt.savefig(kwargs['output_root']+f"/gradient_deviation_{root_label}.png")
         plt.show()
     if 'output_root' in kwargs:
-        save_results('gradient_deviation', numpy.mean(deviations), hierarchy_root.data['acronym'], kwargs['output_root'])
+        save_results('gradient_deviation', numpy.mean(deviations), root_label, kwargs['output_root'])
     return deviations
 
 def vector_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs):
@@ -220,21 +223,27 @@ def gradient_std(fm0, fm1, annotations, hierarchy_root, **kwargs):
     deg_arr = degree_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
     standard_dev = numpy.std(deg_arr[~numpy.isnan(deg_arr)])
     if 'output_root' in kwargs:
-        save_results('gradient_std', standard_dev, hierarchy_root.data['acronym'], kwargs['output_root'])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results('gradient_std', standard_dev, root_label, kwargs['output_root'])
     return standard_dev
 
 def mean_gradient_var(fm0, fm1, annotations, hierarchy_root, **kwargs):
     mean_grad = compass_matrix(fm0, fm1, annotations, hierarchy_root, **kwargs)
     grad_var = numpy.var(mean_grad[~numpy.isnan(mean_grad)])
     if 'output_root' in kwargs:
-        save_results('mean_gradient_variance', grad_var, hierarchy_root.data['acronym'], kwargs['output_root'])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results('mean_gradient_variance', grad_var, root_label, kwargs['output_root'])
     return grad_var
 
 def sum_of_gradient_var(fm0, fm1, annotations, hierarchy_root, ret_degree=True, **kwargs):
     X_vectors, Y_vectors = vector_matrix(fm0, fm1, annotations, hierarchy_root, ret_degree=True)
     mean_var = numpy.var(X_vectors[~numpy.isnan(X_vectors)]) + numpy.var(Y_vectors[~numpy.isnan(Y_vectors)])
     if 'output_root' in kwargs:
-        save_results('sum_gradients_variance', mean_var, hierarchy_root.data['acronym'], kwargs['output_root'])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results('sum_gradients_variance', mean_var, root_label, kwargs['output_root'])
     return mean_var
 
 def mean_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, **kwargs):
@@ -243,7 +252,9 @@ def mean_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, **kwargs):
     vector_mean = numpy.var(mean_vector[~numpy.isnan(mean_vector)])
     dispersion = vector_var / vector_mean
     if 'output_root' in kwargs:
-        save_results('mean_gradient_dispersion', dispersion, hierarchy_root.data['acronym'], kwargs['output_root'])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results('mean_gradient_dispersion', dispersion, root_label, kwargs['output_root'])
     return dispersion
 
 def sum_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, ret_degree=True, **kwargs):
@@ -252,7 +263,9 @@ def sum_gradient_dispersion(fm0, fm1, annotations, hierarchy_root, ret_degree=Tr
     Y_disp = numpy.var(Y_vectors[~numpy.isnan(Y_vectors)]) / numpy.mean(Y_vectors[~numpy.isnan(Y_vectors)])
     dispersion = X_disp + Y_disp
     if 'output_root' in kwargs:
-        save_results('sum_gradient_dispersion', dispersion, hierarchy_root.data['acronym'], kwargs['output_root'])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results('sum_gradient_dispersion', dispersion, root_label, kwargs['output_root'])
     return dispersion
 
 def reversal_index(fm0, fm1, annotations, hierarchy_root, **kwargs):
@@ -277,7 +290,9 @@ def reversal_index(fm0, fm1, annotations, hierarchy_root, **kwargs):
         reversal_y = numpy.count_nonzero(distY > 90) / len(distY)
         factor_reverse = (reversal_x + reversal_y)
     if "output_root" in kwargs:
-        save_results("reversal_index", factor_reverse, hierarchy_root.data["acronym"], kwargs["output_root"])
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
+        save_results("reversal_index", factor_reverse, root_label, kwargs["output_root"])
     return factor_reverse
 
 def abs_cos_angle(v1, v2):
@@ -292,15 +307,17 @@ def banana_factor(fm0, fm1, annotations, hierarchy_root, plot=True, **kwargs):
     g2 = numpy.dstack([x2, y2]).reshape((-1, 2))
     banana = abs_cos_angle(g1, g2).reshape(x1.shape)
     if plot is True:
+        from ..tree_helpers import region_map_to_dict
+        root_label = region_map_to_dict(hierarchy_root)["acronym"]
         ax = plt.figure(figsize=(10, 6)).gca()
         ax.imshow(banana)
         plt.colorbar(ax.imshow(banana), ax=ax, orientation='vertical')
-        plt.title(f"Banana factor_{hierarchy_root.data['acronym']}")
+        plt.title(f"Banana factor_{root_label}")
         if 'output_root' in kwargs:
-            plt.savefig(kwargs['output_root']+f"/banana_factor_{hierarchy_root.data['acronym']}.png")
+            plt.savefig(kwargs['output_root']+f"/banana_factor_{root_label}.png")
         plt.show()
     if 'output_root' in kwargs:
-        save_results('banana_factor', numpy.nanmean(banana), hierarchy_root.data['acronym'], kwargs['output_root'])
+        save_results('banana_factor', numpy.nanmean(banana), root_label, kwargs['output_root'])
     return banana
 
 def find_pre_images(fm0, fm1, annotations, hierarchy_root, method, n=10):

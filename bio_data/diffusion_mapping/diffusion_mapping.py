@@ -4,7 +4,6 @@ import numpy
 
 # from read_projection_volumes import read_volume, read_coordinates # part of this repo
 from .embed import compute_diffusion_map # part of this repo. originally: https://github.com/satra/mapalign
-from matplotlib import pyplot as plt
 
 
 def coordinate_overlap_bitmask(coords_view1, coords_view2):

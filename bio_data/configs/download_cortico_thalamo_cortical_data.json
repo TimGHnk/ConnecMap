@@ -1,6 +1,0 @@
-{
-  "Allen cache": "/home/reimann/Documents/data/connectivity/voxel_model_manifest.json",
-  "Hdf5 cache": "/mnt/c/Users/reima/Documents/data/projection_h5_caches/proj.h5",
-  "Source regions": ["MOp", "MOs", "SSp-bfd", "SSp-ll", "SSp-m", "SSp-n", "SSp-tr", "SSp-ul", "SSp-un", "SSs"],
-  "Target regions": ["MOp", "MOs", "SSp-bfd", "SSp-ll", "SSp-m", "SSp-n", "SSp-tr", "SSp-ul", "SSp-un", "SSs"]
-}

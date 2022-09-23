@@ -1,8 +1,9 @@
-from .cached_projection import CachedProjections
+#from .cached_projection import CachedProjections
+from .aibs_mcm_projection import AibsMcmProjections
 import voxcell
 
 
-class FlattenedProjections(CachedProjections):
+class FlattenedProjections(AibsMcmProjections):
     """
     A version of CachedProjections that additionally has flat maps attached to it that affect the output coordinates
     For more info see CachedProjections

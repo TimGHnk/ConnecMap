@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='parcellation_project',
-    version='0.1',
+    version='0.2',
     install_requires=['rectangle-packer >= 2.0.0',
                       'numpy >= 1.18.5',
                       'voxcell >= 2.6.3',
@@ -17,7 +17,8 @@ setup(
                       'scipy >= 1.6.0',
                       'Pillow >= 8.1.0',
                       'IPython >= 7.19.0',
-                      'pandas >= 0.25.3'],
+                      'pandas >= 0.25.3',
+                      'hdbscan >= 0.8.27'],
     packages=find_packages(),
     include_package_data=True,
     author=['Timothé Guyonnet-Hencke', 'Michael W. Reimann'],

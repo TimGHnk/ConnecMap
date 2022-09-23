@@ -7,8 +7,8 @@ from setuptools import setup, find_packages
 
 setup(
     name='projection_voxels',
-    version='0.03',
-    install_requires=['h5py', 'mouse-connectivity-models', 'simplejson', 'numpy'],
+    version='0.10',
+    install_requires=['h5py', 'numpy', 'voxcell', 'simplejson'],
     packages=find_packages(),
     include_package_data=True,
     author=['Michael Reimann'],

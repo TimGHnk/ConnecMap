@@ -9,11 +9,12 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
 from parcellation_project.analyses import flatmaps as fm_analyses
-from parcellation_project.project import ParcellationLevel
 from parcellation_project.analyses.parcellation import _mi_implementation
 from parcellation_project.analyses.parcellation import mutual_information_two_parcellations
 from voxel_maps import coordinates_to_image
 import seaborn as sns
+
+from .tree_helpers import region_map_at
 
 def grow_tree(graph, root, df, stat):
     '''Grow a hierarchical tree from the whole isocortex to the last parcellation scheme.
@@ -64,7 +65,7 @@ def connectivity_structure(region, fm0, fm1, annotations, hierarchy_root, show=F
     ann_vals = annotations.raw[mask]
     xy = fm0.raw[mask]
     ab = fm1.raw[mask]
-    tgt_region_ids = list(hierarchy_root.collect('acronym', region, 'id'))
+    tgt_region_ids = list(hierarchy_root.find(region, "acronym", with_descendants=True))
     sub_xy = xy[numpy.in1d(ann_vals, tgt_region_ids)]
     sub_ab = ab[numpy.in1d(ann_vals, tgt_region_ids)]
     tmp_img = coordinates_to_image(sub_ab, sub_xy)
@@ -146,9 +147,7 @@ def quadri_stability_from_parcellation(parc_level, noise_amplitude, N, plot=True
     annotations = parc_level.region_volume
     results = pd.DataFrame(columns=['region', 'mean_stability', 'std_stability'])
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         coords3d, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
         reversal_idx = fm_analyses.reversal_index_from_parcellation(parc_level, r)
@@ -171,7 +170,7 @@ def quadri_stability(parc_level, region_name, noise_amplitude, N, plot=True, **k
     fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)
     annotations = parc_level.region_volume
     fm1 = parc_level.flatmap
-    hierarchy_reg = parc_level.hierarchy_root.find("acronym", region_name)[0]
+    hierarchy_reg = region_map_at(parc_level.hierarchy_root, region_name)
     x1,y1,x2,y2 = fm_analyses.gradient_map(fm0, fm1, annotations, hierarchy_reg)  
     three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hierarchy_reg)
     solution0 = splt.quadri_classification(x1, y1, x2, y2, two_d_coords)

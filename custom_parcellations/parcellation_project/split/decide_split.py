@@ -1,7 +1,6 @@
 import numpy
 from voxcell import VoxelData
 from parcellation_project.analyses import flatmaps as fm_analyses
-from parcellation_project.project import ParcellationLevel
 from sklearn.cluster import KMeans
 from sklearn import svm
 from scipy.cluster.hierarchy import linkage, fcluster
@@ -17,7 +16,8 @@ from parcellation_project.split.tuning import tune_epsilon_HDBSCAN, tune_HDBSCAN
 from parcellation_project.split.tuning import HDBSCAN_clf_outliers, HDBSCAN_cut_distance
 from parcellation_project.split.reversal_detector import reversal_detector
 from parcellation_project.split.cosine_distance_clustering import extract_gradients, cosine_distance_clustering
- 
+
+from ..tree_helpers import region_map_at
 
 def binary_classification(deg_arr, two_d_coords):
     '''Classify the gradient in two classes along the 2d coordinates
@@ -33,14 +33,12 @@ def binary_classification(deg_arr, two_d_coords):
 
 
 def binary_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     annotations = parc_level.region_volume
     results = {}
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         coords2d = numpy.unique(coords2d, axis=0)
         deg_arr = fm_analyses.degree_matrix_from_parcellation(parc_level, r, normalize=True)
@@ -75,15 +73,13 @@ def KMeans_classification(x1, y1, x2, y2, two_d_coords, k):
     return grad_clf
     
 def KMeans_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
     results = {}
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
@@ -133,7 +129,7 @@ def HDBSCAN_classification(x1, y1, x2, y2, two_d_coords, **kwargs):
         return grad_clf
     
 def HDBSCAN_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
@@ -172,15 +168,13 @@ def quadri_classification(x1, y1, x2, y2, two_d_coords):
     return [out_ssin, out_scos]
 
 def quadri_classification_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
     results = {}
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
@@ -194,15 +188,13 @@ def quadri_classification_from_parcellation(parc_level, **kwargs):
     return results
 
 def reversal_detector_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
     results = {}
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
@@ -222,16 +214,14 @@ def reversal_detector_from_parcellation(parc_level, **kwargs):
     
 
 def cosine_distance_clustering_from_parcellation(parc_level, **kwargs):
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
     char = parc_level.characterization
     results = {}
     for region_name in parc_level.regions:
-        r = parc_level.hierarchy_root.find("acronym", region_name)
-        assert len(r) == 1
-        r = r[0]
+        r = region_map_at(parc_level.hierarchy_root, region_name)
         _, coords2d = fm_analyses.flatmap_to_coordinates(annotations, fm0, r)
         coords2d = numpy.unique(coords2d, axis=0)
         gradient_dev = numpy.mean(fm_analyses.gradient_deviation_from_parcellation(parc_level, r, plot=False))
@@ -396,10 +386,10 @@ def unflattening(parc_level, region, solution, only_sort=False):
     Add a sorting coordinates process to keep consistency.
     Set only_sort=True if you want to skip the unflattening process.
     '''
-    fm0_fn = parc_level._config["anatomical_flatmap"]
+    fm0_fn = parc_level._config["inputs"]["anatomical_flatmap"]
     fm0 = VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     annotations = parc_level.region_volume
-    hier = parc_level.hierarchy_root.find("acronym", region)[0]
+    hier = region_map_at(parc_level.hierarchy_root, region)
     three_d_coords, two_d_coords = fm_analyses.flatmap_to_coordinates(annotations, fm0, hier)
     if only_sort == False:
         sort_coords = numpy.column_stack((two_d_coords, numpy.zeros((len(two_d_coords),1))))

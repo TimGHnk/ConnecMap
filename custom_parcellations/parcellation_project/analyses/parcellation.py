@@ -8,7 +8,7 @@ from math import log2
 import matplotlib.pyplot as plt
 import copy
 import re
-from voxcell import VoxelData, Hierarchy
+from voxcell import VoxelData, RegionMap
 
 
 
@@ -18,7 +18,7 @@ def from_parcellation(base_func):
         vol0 = VoxelData.load_nrrd(vol0_fn)
         vol1 = copy.deepcopy(parc_level.region_volume)
         r0_fn = parc_level._config['anatomical_hierarchy'] 
-        r0 = Hierarchy.load_json(r0_fn)
+        r0 = RegionMap.load_json(r0_fn)
         r1 = parc_level.id_map
         return base_func(vol0, vol1, r0, r1, **kwargs)
     return returned_function
@@ -156,7 +156,7 @@ def distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=True)
         vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2) : int(vol0.raw.shape[2])].copy()
         vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2) : int(vol1.raw.shape[2])].copy()
     reg_names, _ = regions_and_layers(hierarchy0, vol0)
-    valid_ids  = [list(hierarchy0.collect('acronym', reg, 'id')) for reg in reg_names]
+    valid_ids  = [list(hierarchy0.find(reg, 'acronym', with_descendants=True)) for reg in reg_names]
     valid_ids = [idx for sublist in valid_ids for idx in sublist]
     bitmask = numpy.in1d(vol0.raw.flatten(), valid_ids).reshape(vol0.raw.shape)
     vol = vol0.raw[bitmask]
@@ -164,7 +164,7 @@ def distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=True)
     distrib0 = {'count': [],
                 'distrib': []}
     for reg_name in reg_names:
-        reg_ids = list(hierarchy0.collect('acronym', reg_name, 'id'))
+        reg_ids = list(hierarchy0.find(reg_name, 'acronym', with_descendants=True))
         count = sum([numpy.count_nonzero(vol == idx) for idx in reg_ids])
         distrib0['count'].append(count)
         distrib0['distrib'].append(count / len(vol))
@@ -177,7 +177,7 @@ def distribution_regions(vol0, vol1, hierarchy0, modules, right_hemisphere=True)
                        'distrib': [],
                        'ratio': []}
         for i in range(len(reg_names)):
-            count = sum([numpy.count_nonzero(vol == idx) for idx in list(hierarchy0.collect('acronym', reg_names[i], 'id'))])
+            count = sum([numpy.count_nonzero(vol == idx) for idx in list(hierarchy0.find(reg_names[i], 'acronym', with_descendants=True))])
             distrib_mod['count'].append(count)
             distrib_mod['distrib'].append(count / len(vol))
             distrib_mod['ratio'].append(count / distrib0['count'][i])
@@ -196,7 +196,7 @@ def distribution_layers(vol0, vol1, hierarchy0, modules, right_hemisphere=True):
         vol0.raw = vol0.raw[:,:,int(vol0.raw.shape[2]/2) : int(vol0.raw.shape[2])].copy()
         vol1.raw = vol1.raw[:,:,int(vol1.raw.shape[2]/2) : int(vol1.raw.shape[2])].copy()
     reg_names, layers = regions_and_layers(hierarchy0, vol0)
-    valid_ids  = [list(hierarchy0.collect('acronym', reg, 'id')) for reg in reg_names]
+    valid_ids  = [list(hierarchy0.find(reg, "acronym", with_descendants=True)) for reg in reg_names]
     valid_ids = [idx for sublist in valid_ids for idx in sublist]
     bitmask = numpy.in1d(vol0.raw.flatten(), valid_ids).reshape(vol0.raw.shape)
     vol = vol0.raw[bitmask]
@@ -204,7 +204,7 @@ def distribution_layers(vol0, vol1, hierarchy0, modules, right_hemisphere=True):
     distrib0 = {'count': [],
                 'distrib': []}
     for lay in layers:
-        count = sum([numpy.count_nonzero(vol == idx) for idx in vxl_ids if lay in list(hierarchy0.collect('id', idx, 'acronym'))[0]])
+        count = sum([numpy.count_nonzero(vol == idx) for idx in vxl_ids if lay in hierarchy0.get(idx, "acronym")])
         distrib0['count'].append(count)
         distrib0['distrib'].append(count / len(vol))
     distrib1 = []
@@ -215,7 +215,7 @@ def distribution_layers(vol0, vol1, hierarchy0, modules, right_hemisphere=True):
                        'distrib': [],
                        'ratio': []}
         for i in range(len(layers)):
-            count = sum([numpy.count_nonzero(vol == idx) for idx in vxl_ids if layers[i] in list(hierarchy0.collect('id', idx, 'acronym'))[0]])
+            count = sum([numpy.count_nonzero(vol == idx) for idx in vxl_ids if layers[i] in hierarchy0.get(idx, "acronmym")])
             distrib_mod['count'].append(count)
             distrib_mod['distrib'].append(count / len(vol))
             distrib_mod['ratio'].append(count / distrib0['count'][i])
@@ -250,10 +250,10 @@ def regions_and_layers(hier, annotations, root='Isocortex'):
     '''
     region_names = []
     layer_names = []
-    valid_ids = list(hier.collect('acronym', root, 'id'))   
+    valid_ids = list(hier.find(root, 'acronym', with_descendants=True))   
     bitmask = numpy.in1d(annotations.raw.flatten(), valid_ids).reshape(annotations.raw.shape)
     vxl_ids = numpy.unique(annotations.raw[bitmask])
-    all_names = [hier.find('id', i)[0].data["acronym"] for i in vxl_ids]
+    all_names = [hier.get(i, "acronym") for i in vxl_ids]
     for name in all_names:
         region_names.append(re.split(r'(?=\d)', name, maxsplit=1)[0])
         layer_names.append(re.split(r'(?=\d)', name, maxsplit=1)[1])

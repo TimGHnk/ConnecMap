@@ -1,0 +1,82 @@
+{
+  "level_class": "AibsLevel",
+  "level_configuration": {
+    "root_region": "Isocortex",
+    "inputs":{
+        "anatomical_flatmap": "./anatomical_flatmap.nrrd",
+        "anatomical_parcellation": "./annotation_100.nrrd",
+        "anatomical_hierarchy": "./hierarchy_bis.json",
+        "voxel_model_manifest": "./voxel_model_manifest.json",
+        "voxel_model_structures": "./structures.json"
+    },
+    "paths": {
+      "region_volume": "run/custom_annotations.nrrd",
+      "hierarchy": "run/custom_hierarchy.json",
+      "lower_level": "split",
+      "manifest": "run/custom_voxel_model_manifest.json",
+      "flatten_cfg": "run/flattening_config.json",
+      "flatmap": "output/flatmap.nrrd",
+      "characterization": "output/characterization.json",
+      "analyses": "output/analyses",
+      "structures": "run/custom_structures.json",
+      "cache_cfg": "run/cache_config.json"
+    },
+    "hemisphere": "right",
+    "analyses": {
+      "parcellation": ["mutual_information_from_parcellation_regions",
+                      "mutual_information_from_parcellation_layers",
+                      "overlap_with_parcellation"],
+      "flatmap": ["banana_factor_from_parcellation",
+                  "gradient_map_from_parcellation",
+                  "gradient_deviation_from_parcellation",
+                  "reversal_index_from_parcellation",
+                  "sum_gradient_variance_from_parcellation",
+                  "mean_gradient_variance_from_parcellation",
+                  "sum_gradient_dispersion_from_parcellation",
+                  "mean_gradient_dispersion_from_parcellation"]
+    }
+  },
+  "parameters": {
+    "_comment": "Any parameters can go here",
+    "splitting": {
+      "step_1": {
+        "function": "reversal_detector_from_parcellation",
+        "args": [],
+        "kwargs": {"thres_banana_factor": 0,
+         "thres_gradient_deviation": 50,
+          "thres_reversal_index": 0.05,
+          "alpha": 1.0,
+          "eps": 0.01,
+          "min_cluster_size": 20,
+          "min_samples": 20,
+          "cut_distance": 0.0,
+          "pre_filter_sz": 5,
+          "post_filter_sz": 1,
+          "min_seed_cluster_sz": 4,
+          "border_thresh": 0.05}
+      },
+      "step_2": {
+        "function": "SVM_splitter",
+        "args": [],
+        "kwargs": {"C": 0.5, "gamma":  0.05, "t":  2, "thres_accuracy": 0, "merge": 1},
+        "tuning": "SVM_tuner",
+        "validation": {
+            "function": 0,
+            "kwargs": {"thres_size": 100, "thres_MSE": 1000, "thres_MAPE": 1000, "thres_Rsquared": 0} 
+      }
+     }
+    },
+    "visualization":{
+    "step_1": "reversal_detection_for_visualization",
+    "step_2": "viz_with_SVM"
+    },
+    "initial_parcellation": {
+      "Module1": ["MO", "SS", "FRP", "ORB", "ACA", "PL", "ILA", "AI", "VISC", "GU", "VIS",
+      "AUD", "RSP", "PTLp", "TEa", "PERI", "ECT"]
+    },
+    "Diffusion_mapping":{
+    "consider_connectivity": "inter",
+    "connectivity_direction": "both"
+    }
+  }
+}

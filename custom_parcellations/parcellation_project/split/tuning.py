@@ -18,6 +18,8 @@ from voxel_maps import coordinates_to_image
 import seaborn as sns
 from parcellation_project.analyses import flatmaps as fm_analyses
 
+from ..tree_helpers import region_map_at
+
 
 def SVM_tuner(parc_level, initial_solution, param_grid, **kwargs):
     regionsSplitted = []
@@ -125,7 +127,7 @@ def KMeans_tuner(parc_level, k_grid, region_name, method, show=False):
     fm0 = voxcell.VoxelData.load_nrrd(fm0_fn)  # Anatomical fm
     fm1 = parc_level.flatmap  # Diffusion fm
     annotations = parc_level.region_volume
-    r = parc_level.hierarchy_root.find("acronym", region_name)[0]  
+    r = region_map_at(parc_level.hierarchy_root, region_name)  
     three_d_coords, two_d_coords = flatmap_to_coordinates(annotations, fm0, r)
     x1,y1,x2,y2 = gradient_map(fm0, fm1, annotations, r, show=False) 
     vectors = numpy.vstack(
